@@ -1,0 +1,20 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Kivy config/logs
+.kivy/
+
+# macOS
+.DS_Store
+
+# Generated Cython C++
+src/thorkivy/*.cpp
+src/thorkivy/*.so

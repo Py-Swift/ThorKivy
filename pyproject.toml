@@ -1,0 +1,47 @@
+[project]
+name = "thorkivy"
+version = "0.1.0"
+description = "ThorVG canvas instructions for Kivy — GPU-accelerated vector shapes via GlCanvas"
+readme = "README.md"
+authors = [
+    { name = "Py-Swift", email = "psychowaspx@gmail.com" }
+]
+requires-python = ">=3.13"
+license = "MIT"
+dependencies = [
+    "kivy",
+    "thorvg-cython",
+]
+classifiers = [
+    "Programming Language :: Cython",
+    "Programming Language :: Python :: 3",
+    "Framework :: Kivy",
+    "Topic :: Multimedia :: Graphics",
+]
+
+[project.scripts]
+thorkivy = "thorkivy.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68", "Cython>=3.0", "kivy>=2.3.1"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+thorkivy = ["*.pxd", "*.pyx"]
+
+[tool.cibuildwheel]
+build = "cp313-*"
+skip = "pp* *-musllinux_i686"
+environment = { THORVG_GPU = "angle" }
+test-requires = ["pytest"]
+test-command = "pytest {project}/tests -v"
+
+[tool.cibuildwheel.macos]
+environment = { THORVG_GPU = "angle", MACOSX_DEPLOYMENT_TARGET = "11.0" }
+
+[tool.uv.sources]
+kivy = { path = "../wheelhouse/kivy-3.0.0.dev0-cp313-cp313-macosx_10_15_x86_64.whl" }
+thorvg-cython = { path = "../wheelhouse/thorvg_cython-0.0.2-cp313-cp313-macosx_11_0_x86_64.whl" }
