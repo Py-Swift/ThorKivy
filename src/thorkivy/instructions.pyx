@@ -141,6 +141,12 @@ _atexit.register(_shutdown_engine)
 
 
 # ═══════════════════════════════════════════════════════════════════
+#  Active-group context (set by ThorGroup.__enter__)
+# ═══════════════════════════════════════════════════════════════════
+cdef object _active_group = None
+
+
+# ═══════════════════════════════════════════════════════════════════
 #  Colour helper
 # ═══════════════════════════════════════════════════════════════════
 cdef tuple _normalize_color(object c):
@@ -185,6 +191,9 @@ cdef class ThorInstruction(Instruction):
         self._frame_count = 0
         self._group = None
         Instruction.__init__(self, **kwargs)
+        # Auto-register with ThorGroup context manager if active
+        if _active_group is not None:
+            _active_group.add(self)
 
     # ── Kivy calls this every frame for each instruction ───────
     cdef int apply(self) except -1:
@@ -993,11 +1002,21 @@ cdef class ThorGroup(Instruction):
     """Batch-render group: one shared ``GlCanvas`` for all children.
 
     Owns one ``GlCanvas`` and pushes it to every child added via
-    ``add()``.  Children are ``ThorInstruction`` instances created
-    **outside** any ``with canvas:`` block — the group is the sole
-    Kivy ``Instruction`` and handles ``update`` → ``draw`` → ``sync``.
+    ``add()`` or the context-manager.  The group is the sole Kivy
+    ``Instruction`` and handles ``update`` → ``draw`` → ``sync``.
 
-    Usage::
+    Usage (context-manager)::
+
+        with self.canvas:
+            self.group = ThorGroup()
+
+        with self.group:
+            self.rect = ThorRectangle(pos=(10, 10), size=(200, 100),
+                                      fill_color=(255, 0, 0))
+            self.circle = ThorCircle(center=(300, 300), radius=60,
+                                      fill_color=(0, 128, 255))
+
+    Usage (explicit add)::
 
         with self.canvas:
             self.group = ThorGroup()
@@ -1006,18 +1025,14 @@ cdef class ThorGroup(Instruction):
                                   fill_color=(255, 0, 0))
         self.group.add(self.rect)
 
-        self.circle = ThorCircle(center=(300, 300), radius=60,
-                                  fill_color=(0, 128, 255))
-        self.group.add(self.circle)
-
-        # later — property changes propagate to the group
-        self.rect.pos = (50, 50)
+    Property changes propagate to the group automatically.
     """
     cdef object _gl_canvas
     cdef list   _children
     cdef int    _cached_fbo
     cdef unsigned int _cached_vp_w
     cdef unsigned int _cached_vp_h
+    cdef object _prev_active    # saved _active_group for nesting
 
     def __init__(self, **kwargs):
         _ensure_engine()
@@ -1026,7 +1041,19 @@ cdef class ThorGroup(Instruction):
         self._cached_fbo = -1
         self._cached_vp_w = 0
         self._cached_vp_h = 0
+        self._prev_active = None
         Instruction.__init__(self, **kwargs)
+
+    # ── context-manager: ``with group:`` auto-adds children ──
+    def __enter__(self):
+        global _active_group
+        self._prev_active = _active_group
+        _active_group = self
+        return self
+
+    def __exit__(self, *args):
+        global _active_group
+        _active_group = self._prev_active
 
     def add(self, ThorInstruction child):
         """Add a ThorInstruction to this group."""
