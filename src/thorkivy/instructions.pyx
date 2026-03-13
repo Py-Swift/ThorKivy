@@ -117,12 +117,16 @@ def _get_egl_handles():
 #  ThorVG engine singleton
 # ═══════════════════════════════════════════════════════════════════
 cdef bint _engine_ready = False
+cdef bint isReady():
+    return _engine_ready
+
 cdef object _engine = None
 
 cdef void _ensure_engine():
+    
+    if isReady(): return
+    
     global _engine_ready, _engine
-    if _engine_ready:
-        return
     _engine = Engine(threads=0)
     _engine.__enter__()
     _engine_ready = True
@@ -989,31 +993,29 @@ cdef class ThorScene(ThorInstruction):
 # ═══════════════════════════════════════════════════════════════════
 #  ThorGroup — batch-render with ONE shared GlCanvas
 # ═══════════════════════════════════════════════════════════════════
-cdef class ThorGroup(Instruction):
-    """Batch-render group: one shared ``GlCanvas`` for all children.
+cdef class ThorGroup(CanvasBase):
+    """Batch-render group — works like Kivy's ``InstructionGroup``.
 
-    Owns one ``GlCanvas`` and pushes it to every child added via
-    ``add()``.  The group is the sole Kivy ``Instruction`` and handles
-    ``update`` → ``draw`` → ``sync``.
+    Use ``with group:`` to auto-add children, exactly like
+    ``with canvas:``.  No globals — uses Kivy's own active-canvas
+    mechanism inherited from ``CanvasBase``.
 
     Usage::
 
         with self.canvas:
             self.group = ThorGroup()
 
-        self.rect = ThorRectangle(pos=(10, 10), size=(200, 100),
-                                  fill_color=(255, 0, 0))
-        self.group.add(self.rect)
-
-        self.circle = ThorCircle(center=(300, 300), radius=60,
-                                  fill_color=(0, 128, 255))
-        self.group.add(self.circle)
+        with self.group:
+            self.rect = ThorRectangle(pos=(10, 10), size=(200, 100),
+                                      fill_color=(255, 0, 0))
+            self.circle = ThorCircle(center=(300, 300), radius=60,
+                                      fill_color=(0, 128, 255))
 
         # property changes propagate to the group automatically
         self.rect.pos = (50, 50)
     """
     cdef object _gl_canvas
-    cdef list   _children
+    cdef list   _thor_children
     cdef int    _cached_fbo
     cdef unsigned int _cached_vp_w
     cdef unsigned int _cached_vp_h
@@ -1021,40 +1023,36 @@ cdef class ThorGroup(Instruction):
     def __init__(self, **kwargs):
         _ensure_engine()
         self._gl_canvas = None
-        self._children = []
+        self._thor_children = []
         self._cached_fbo = -1
         self._cached_vp_w = 0
         self._cached_vp_h = 0
-        Instruction.__init__(self, **kwargs)
+        CanvasBase.__init__(self, **kwargs)
 
-    def add(self, ThorInstruction child):
-        """Add a ThorInstruction to this group."""
-        child._group = self
-        self._children.append(child)
-        if self._gl_canvas is not None:
-            child._gl_canvas = self._gl_canvas
-        self.flag_update()
+    cpdef add(self, Instruction c):
+        CanvasBase.add(self, c)
+        if isinstance(c, ThorInstruction):
+            (<ThorInstruction>c)._group = self
+            self._thor_children.append(c)
+            if self._gl_canvas is not None:
+                (<ThorInstruction>c)._gl_canvas = self._gl_canvas
 
-    def remove(self, ThorInstruction child):
-        """Remove a ThorInstruction from this group."""
-        if child._tvg_shape is not None and child._shape_added:
+    cpdef remove(self, Instruction c):
+        if isinstance(c, ThorInstruction):
+            ti = <ThorInstruction>c
+            if ti._tvg_shape is not None and ti._shape_added:
+                try:
+                    self._gl_canvas.remove(ti._tvg_shape)
+                except Exception:
+                    pass
+                ti._shape_added = False
+            ti._gl_canvas = None
+            ti._group = None
             try:
-                self._gl_canvas.remove(child._tvg_shape)
-            except Exception:
+                self._thor_children.remove(c)
+            except ValueError:
                 pass
-            child._shape_added = False
-        child._gl_canvas = None
-        child._group = None
-        try:
-            self._children.remove(child)
-        except ValueError:
-            pass
-        self.flag_update()
-
-    @property
-    def children(self):
-        """Read-only list of children in this group."""
-        return list(self._children)
+        CanvasBase.remove(self, c)
 
     cdef int apply(self) except -1:
         cdef GLint saved_fbo = 0
@@ -1062,12 +1060,14 @@ cdef class ThorGroup(Instruction):
         cdef uint32_t vp_w, vp_h
         cdef bint any_dirty = False
 
+        if not self._thor_children:
+            return 0
+
         # --- lazy-create GlCanvas --------------------------------
         if self._gl_canvas is None:
             self._gl_canvas = GlCanvas()
             self._cached_fbo = -1
-            # push canvas to children added before first frame
-            for child in self._children:
+            for child in self._thor_children:
                 (<ThorInstruction>child)._gl_canvas = self._gl_canvas
 
         # --- save FBO + viewport ---------------------------------
@@ -1098,7 +1098,7 @@ cdef class ThorGroup(Instruction):
                 return 0
 
         # --- rebuild children: check dirty BEFORE _rebuild clears it
-        for child in self._children:
+        for child in self._thor_children:
             if (<ThorInstruction>child)._dirty:
                 any_dirty = True
             (<ThorInstruction>child)._rebuild()
