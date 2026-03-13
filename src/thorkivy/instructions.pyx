@@ -190,11 +190,6 @@ cdef class ThorInstruction(Instruction):
         cdef Context ctx
         cdef Shader shader
 
-        self._frame_count += 1
-        if self._frame_count <= 3:
-            import sys
-            print(f"[ThorKivy] apply() frame={self._frame_count} type={type(self).__name__}", flush=True)
-
         # --- lazy-create GlCanvas (GL context is live here) ----
         if self._gl_canvas is None:
             self._gl_canvas = GlCanvas()
@@ -236,14 +231,9 @@ cdef class ThorInstruction(Instruction):
         cgl.glBindBuffer(GL_ARRAY_BUFFER, 0)
 
         # --- ThorVG render (composite, don't clear) ------------
-        r1 = self._gl_canvas.update()
-        r2 = self._gl_canvas.draw(False)
-        r3 = self._gl_canvas.sync()
-        #if self._frame_count <= 3:
-        #    import sys
-        #    print(f"[ThorKivy] render done fbo={saved_fbo} vp={saved_vp[2]}x{saved_vp[3]} u={r1} d={r2} s={r3}", flush=True)
-        # DIAG: return before GL state restore — is sync or restore the culprit?
-        return 0
+        self._gl_canvas.update()
+        self._gl_canvas.draw(False)
+        self._gl_canvas.sync()
 
         # ═══════════════════════════════════════════════════════
         #  Restore Kivy GL state

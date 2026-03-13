@@ -1,0 +1,1 @@
+"""ThorKivy examples package."""
