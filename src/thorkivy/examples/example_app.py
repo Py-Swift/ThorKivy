@@ -7,6 +7,7 @@ Screens:
   2  Animated grid    (screen_2.GridCanvas)
   3  KV dashboard     (screen_3.DashboardWidget)
   4  KV clock         (screen_4.ClockFace)
+  5  SVG gallery      (screen_5.SvgGallery)
 
 Run with:  python -m thorkivy
 """
@@ -23,6 +24,7 @@ from thorkivy.examples.screen_1 import RingsCanvas
 from thorkivy.examples.screen_2 import GridCanvas
 from thorkivy.examples.screen_3 import DashboardWidget
 from thorkivy.examples.screen_4 import ClockFace
+from thorkivy.examples.screen_5 import SvgGallery
 
 # ── registry of screens ────────────────────────────────────────
 SCREENS = [
@@ -31,6 +33,7 @@ SCREENS = [
     ("Grid", GridCanvas),
     ("Dashboard", DashboardWidget),
     ("Clock", ClockFace),
+    ("SVGs", SvgGallery),
 ]
 
 

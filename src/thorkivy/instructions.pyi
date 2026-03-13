@@ -345,3 +345,68 @@ class ThorQuad(ThorInstruction):
         ...
     @stroke_width.setter
     def stroke_width(self, value: float) -> None: ...
+
+class ThorSvg(ThorInstruction):
+    """Render an SVG image via ThorVG's ``Picture`` loader.
+
+    Supply SVG content inline (``data``) or load from a file (``source``).
+    Use ``pos`` and ``size`` to place and scale the rendered image.
+
+    Example (inline)::
+
+        ThorSvg(data='<svg viewBox="0 0 100 100">...</svg>',
+                pos=(50, 50), size=(200, 200))
+
+    Example (file)::
+
+        ThorSvg(source="/path/to/icon.svg",
+                pos=(10, 10), size=(64, 64))
+    """
+
+    def __init__(
+        self,
+        *,
+        data: str | bytes | None = ...,
+        source: str = ...,
+        pos: tuple[float, float] = ...,
+        size: tuple[float, float] = ...,
+    ) -> None:
+        """Create an SVG instruction.
+
+        Args:
+            data: SVG content as a ``str`` or ``bytes``.  Mutually
+                exclusive with ``source``.  Default ``None``.
+            source: Path to an SVG file on disk.  Default ``""``.
+            pos: Translation offset ``(x, y)`` in pixels.  Default ``(0, 0)``.
+            size: Target width and height ``(w, h)`` in pixels.
+                ``(0, 0)`` keeps the SVG's intrinsic size.
+        """
+        ...
+
+    @property
+    def data(self) -> bytes | None:
+        """SVG content as ``bytes``, or ``None`` if loaded from file."""
+        ...
+    @data.setter
+    def data(self, value: str | bytes | None) -> None: ...
+
+    @property
+    def source(self) -> str:
+        """Path to an SVG file, or ``''`` if using inline data."""
+        ...
+    @source.setter
+    def source(self, value: str) -> None: ...
+
+    @property
+    def pos(self) -> tuple[float, float]:
+        """Translation offset ``(x, y)``."""
+        ...
+    @pos.setter
+    def pos(self, value: tuple[float, float]) -> None: ...
+
+    @property
+    def size(self) -> tuple[float, float]:
+        """Target width and height ``(w, h)``."""
+        ...
+    @size.setter
+    def size(self, value: tuple[float, float]) -> None: ...

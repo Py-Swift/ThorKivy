@@ -25,6 +25,7 @@ from thorkivy.instructions import (
     ThorCircle,
     ThorTriangle,
     ThorQuad,
+    ThorSvg,
 )
 
 __all__ = [
@@ -34,10 +35,11 @@ __all__ = [
     "ThorCircle",
     "ThorTriangle",
     "ThorQuad",
+    "ThorSvg",
 ]
 
 # ── Register with Kivy Factory for KV language support ─────────
 from kivy.factory import Factory
 
-for _cls in (ThorRectangle, ThorRoundedRectangle, ThorCircle, ThorTriangle, ThorQuad):
+for _cls in (ThorRectangle, ThorRoundedRectangle, ThorCircle, ThorTriangle, ThorQuad, ThorSvg):
     Factory.register(_cls.__name__, cls=_cls)
