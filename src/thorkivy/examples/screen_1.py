@@ -31,51 +31,59 @@ class RingsCanvas(Widget):
             self._bg2 = KivyRect(pos=(0, 0), size=self.size)
 
         with self.canvas:
-            self.ring_group = ThorGroup()  # group for the rings, to test grouping + transforms
-            
-        with self.ring_group:
-            # ── Concentric rings (stroked circles, no fill) ────
-            ring_colors = [
-                (255, 80, 80, 160),
-                (255, 180, 40, 140),
-                (80, 220, 120, 120),
-                (40, 160, 255, 100),
-                (180, 80, 255, 80),
-            ]
-            self._rings = []
-            for i, col in enumerate(ring_colors):
-                r = 40 + i * 35
-                ring = ThorCircle(
-                    center=(400, 300), radius=r,
-                    fill_color=(0, 0, 0, 0),
-                    stroke_color=col, stroke_width=3 + i,
-                )
-                self._rings.append(ring)
+            self.ring_group = ThorGroup()
 
-            # ── Pulsing center dot ─────────────────────────────
-            self._dot = ThorCircle(
-                center=(400, 300), radius=18,
-                fill_color=(255, 255, 255, 220),
+        # ── Concentric rings (stroked circles, no fill) ────────
+        ring_colors = [
+            (255, 80, 80, 160),
+            (255, 180, 40, 140),
+            (80, 220, 120, 120),
+            (40, 160, 255, 100),
+            (180, 80, 255, 80),
+        ]
+        self._rings = []
+        for i, col in enumerate(ring_colors):
+            r = 40 + i * 35
+            ring = ThorCircle(
+                center=(400, 300), radius=r,
+                fill_color=(0, 0, 0, 0),
+                stroke_color=col, stroke_width=3 + i,
             )
+            self.ring_group.add(ring)
+            self._rings.append(ring)
 
-            # ── Orbiting shapes ────────────────────────────────
-            self._orb_rect = ThorRectangle(
-                pos=(0, 0), size=(50, 30),
-                fill_color=(255, 100, 60, 200),
-            )
-            self._orb_rrect = ThorRoundedRectangle(
-                pos=(0, 0), size=(45, 45), radius=10,
-                fill_color=(60, 200, 255, 180),
-                stroke_color=(255, 255, 255, 100), stroke_width=1,
-            )
-            self._orb_tri = ThorTriangle(
-                points=(0, 0, 20, 35, -20, 35),
-                fill_color=(255, 220, 50, 200),
-            )
-            self._orb_quad = ThorQuad(
-                points=(0, 0, 30, 5, 25, 30, -5, 25),
-                fill_color=(180, 60, 255, 170),
-            )
+        # ── Pulsing center dot ─────────────────────────────────
+        self._dot = ThorCircle(
+            center=(400, 300), radius=18,
+            fill_color=(255, 255, 255, 220),
+        )
+        self.ring_group.add(self._dot)
+
+        # ── Orbiting shapes ────────────────────────────────────
+        self._orb_rect = ThorRectangle(
+            pos=(0, 0), size=(50, 30),
+            fill_color=(255, 100, 60, 200),
+        )
+        self.ring_group.add(self._orb_rect)
+
+        self._orb_rrect = ThorRoundedRectangle(
+            pos=(0, 0), size=(45, 45), radius=10,
+            fill_color=(60, 200, 255, 180),
+            stroke_color=(255, 255, 255, 100), stroke_width=1,
+        )
+        self.ring_group.add(self._orb_rrect)
+
+        self._orb_tri = ThorTriangle(
+            points=(0, 0, 20, 35, -20, 35),
+            fill_color=(255, 220, 50, 200),
+        )
+        self.ring_group.add(self._orb_tri)
+
+        self._orb_quad = ThorQuad(
+            points=(0, 0, 30, 5, 25, 30, -5, 25),
+            fill_color=(180, 60, 255, 170),
+        )
+        self.ring_group.add(self._orb_quad)
 
         # ── Kivy overlay — HUD-style bar ──────────────────────
         with self.canvas.after:

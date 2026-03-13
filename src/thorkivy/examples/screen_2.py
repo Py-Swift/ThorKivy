@@ -9,6 +9,7 @@ from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle as KivyRect
 
 from thorkivy.instructions import (
+    ThorGroup,
     ThorRectangle,
     ThorRoundedRectangle,
     ThorCircle,
@@ -32,8 +33,12 @@ class GridCanvas(Widget):
         tile_w = 80
         tile_h = 70
         shapes = [ThorRectangle, ThorRoundedRectangle, ThorCircle]
-
+        
         with self.canvas:
+            self.shapes = ThorGroup()  # group for all the tiles, to test grouping + transforms
+        
+        with self.shapes:
+            
             for row in range(ROWS):
                 for col in range(COLS):
                     x = PADDING + col * (tile_w + PADDING)
@@ -61,7 +66,7 @@ class GridCanvas(Widget):
                             fill_color=(200, 200, 200, 255),
                         )
                     self._tiles.append((idx, shape, x, y, tile_w, tile_h))
-
+        
         # ── Kivy overlay — subtle vignette strip ──────────────
         with self.canvas.after:
             Color(0.0, 0.0, 0.0, 0.25)

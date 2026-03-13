@@ -522,32 +522,19 @@ class ThorGroup:
     """Batch-render group: one shared GlCanvas for all children.
 
     Owns one ``GlCanvas`` and pushes it to every child added via
-    ``add()`` or the context-manager.  The group is the sole Kivy
-    ``Instruction`` and handles ``update`` → ``draw`` → ``sync``.
+    ``add()``.  The group is the sole Kivy ``Instruction`` and handles
+    ``update`` → ``draw`` → ``sync``.
 
-    Example (context-manager)::
+    Example::
 
         with self.canvas:
             self.group = ThorGroup()
 
-        with self.group:
-            ThorRectangle(pos=(10, 10), size=(200, 100),
-                          fill_color=(255, 0, 0))
-
-    Example (explicit add)::
-
         self.group.add(ThorRectangle(pos=(10, 10), ...))
+        self.group.add(ThorCircle(center=(300, 300), ...))
     """
 
     def __init__(self) -> None: ...
-
-    def __enter__(self) -> "ThorGroup":
-        """Enter context: children created inside are auto-added."""
-        ...
-
-    def __exit__(self, *args: object) -> None:
-        """Exit context."""
-        ...
 
     def add(self, child: ThorInstruction) -> None:
         """Add a ThorInstruction to this group."""

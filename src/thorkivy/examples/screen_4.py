@@ -29,43 +29,44 @@ Builder.load_string("""
             size: self.size
 
     canvas:
-        # ── outer ring ──
-        ThorCircle:
-            center: root.cx, root.cy
-            radius: root.clock_r + 6
-            fill_color: 0, 0, 0, 0
-            stroke_color: 80, 140, 220, 180
-            stroke_width: 3
+        ThorGroup:
+            # ── outer ring ──
+            ThorCircle:
+                center: root.cx, root.cy
+                radius: root.clock_r + 6
+                fill_color: 0, 0, 0, 0
+                stroke_color: 80, 140, 220, 180
+                stroke_width: 3
 
-        # ── face fill ──
-        ThorCircle:
-            center: root.cx, root.cy
-            radius: root.clock_r
-            fill_color: 18, 22, 36, 240
+            # ── face fill ──
+            ThorCircle:
+                center: root.cx, root.cy
+                radius: root.clock_r
+                fill_color: 18, 22, 36, 240
 
-        # ── hour markers (12 small rects placed by code) ──
-        # (done in Python — KV can't loop)
+            # ── hour markers (12 small rects placed by code) ──
+            # (done in Python — KV can't loop)
 
-        # ── hour hand ──
-        ThorTriangle:
-            points: root.hour_pts
-            fill_color: root.hour_color
+            # ── hour hand ──
+            ThorTriangle:
+                points: root.hour_pts
+                fill_color: root.hour_color
 
-        # ── minute hand ──
-        ThorTriangle:
-            points: root.min_pts
-            fill_color: root.min_color
+            # ── minute hand ──
+            ThorTriangle:
+                points: root.min_pts
+                fill_color: root.min_color
 
-        # ── second hand ──
-        ThorTriangle:
-            points: root.sec_pts
-            fill_color: root.sec_color
+            # ── second hand ──
+            ThorTriangle:
+                points: root.sec_pts
+                fill_color: root.sec_color
 
-        # ── center dot ──
-        ThorCircle:
-            center: root.cx, root.cy
-            radius: 7
-            fill_color: 255, 255, 255, 240
+            # ── center dot ──
+            ThorCircle:
+                center: root.cx, root.cy
+                radius: 7
+                fill_color: 255, 255, 255, 240
 
     # ── digital readout ──
     Label:
