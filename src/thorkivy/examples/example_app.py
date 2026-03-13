@@ -5,6 +5,8 @@ Screens:
   0  Shape showcase   (screen_0.ThorCanvas)
   1  Concentric rings (screen_1.RingsCanvas)
   2  Animated grid    (screen_2.GridCanvas)
+  3  KV dashboard     (screen_3.DashboardWidget)
+  4  KV clock         (screen_4.ClockFace)
 
 Run with:  python -m thorkivy
 """
@@ -19,12 +21,16 @@ from kivy.clock import Clock
 from thorkivy.examples.screen_0 import ThorCanvas
 from thorkivy.examples.screen_1 import RingsCanvas
 from thorkivy.examples.screen_2 import GridCanvas
+from thorkivy.examples.screen_3 import DashboardWidget
+from thorkivy.examples.screen_4 import ClockFace
 
 # ── registry of screens ────────────────────────────────────────
 SCREENS = [
     ("Shapes", ThorCanvas),
     ("Rings", RingsCanvas),
     ("Grid", GridCanvas),
+    ("Dashboard", DashboardWidget),
+    ("Clock", ClockFace),
 ]
 
 
