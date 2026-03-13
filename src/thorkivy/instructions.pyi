@@ -7,10 +7,10 @@ Each class is a Kivy ``Instruction`` subclass that renders via ThorVG's
 instructions::
 
     with widget.canvas.after:
-        Rectangle(pos=(50, 50), size=(200, 100),
-                  fill_color=(255, 0, 0, 255))
-        Circle(center=(300, 300), radius=60,
-               fill_color=(0, 128, 255, 200))
+        TRectangle(pos=(50, 50), size=(200, 100),
+                   fill_color=(255, 0, 0, 255))
+        TCircle(center=(300, 300), radius=60,
+                fill_color=(0, 128, 255, 200))
 
 Colors are 0–255 integers (RGB or RGBA).  Omitting alpha defaults to 255.
 """
@@ -26,14 +26,14 @@ class ThorInstruction:
     """
     ...
 
-class Rectangle(ThorInstruction):
+class TRectangle(ThorInstruction):
     """Axis-aligned filled and/or stroked rectangle.
 
     Example::
 
-        Rectangle(pos=(10, 10), size=(200, 100),
-                  fill_color=(255, 0, 0),
-                  stroke_color=(0, 0, 0), stroke_width=2)
+        TRectangle(pos=(10, 10), size=(200, 100),
+                   fill_color=(255, 0, 0),
+                   stroke_color=(0, 0, 0), stroke_width=2)
     """
 
     def __init__(
@@ -92,13 +92,13 @@ class Rectangle(ThorInstruction):
     @stroke_width.setter
     def stroke_width(self, value: float) -> None: ...
 
-class RoundedRectangle(ThorInstruction):
+class TRoundedRectangle(ThorInstruction):
     """Rectangle with rounded corners.
 
     Example::
 
-        RoundedRectangle(pos=(10, 10), size=(200, 100), radius=15,
-                         fill_color=(100, 200, 255))
+        TRoundedRectangle(pos=(10, 10), size=(200, 100), radius=15,
+                          fill_color=(100, 200, 255))
     """
 
     def __init__(
@@ -166,13 +166,13 @@ class RoundedRectangle(ThorInstruction):
     @stroke_width.setter
     def stroke_width(self, value: float) -> None: ...
 
-class Circle(ThorInstruction):
+class TCircle(ThorInstruction):
     """Circle or ellipse.
 
     Example::
 
-        Circle(center=(200, 200), radius=80,
-               fill_color=(0, 128, 255, 200))
+        TCircle(center=(200, 200), radius=80,
+                fill_color=(0, 128, 255, 200))
 
     Pass ``radius=(rx, ry)`` for an ellipse.
     """
@@ -233,13 +233,13 @@ class Circle(ThorInstruction):
     @stroke_width.setter
     def stroke_width(self, value: float) -> None: ...
 
-class Triangle(ThorInstruction):
+class TTriangle(ThorInstruction):
     """Triangle defined by three vertices.
 
     Example::
 
-        Triangle(points=(100, 50, 50, 150, 150, 150),
-                 fill_color=(255, 200, 0))
+        TTriangle(points=(100, 50, 50, 150, 150, 150),
+                  fill_color=(255, 200, 0))
     """
 
     def __init__(
@@ -289,13 +289,13 @@ class Triangle(ThorInstruction):
     @stroke_width.setter
     def stroke_width(self, value: float) -> None: ...
 
-class Quad(ThorInstruction):
+class TQuad(ThorInstruction):
     """Arbitrary quadrilateral defined by four vertices.
 
     Example::
 
-        Quad(points=(50, 50, 200, 30, 220, 180, 70, 200),
-             fill_color=(180, 80, 255))
+        TQuad(points=(50, 50, 200, 30, 220, 180, 70, 200),
+              fill_color=(180, 80, 255))
     """
 
     def __init__(

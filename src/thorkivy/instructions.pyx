@@ -12,10 +12,10 @@ does the ThorVG work and then resets GL state exactly like Kivy's own
 Usage::
 
     with self.canvas.after:
-        Rectangle(pos=(50, 50), size=(200, 100),
-                  fill_color=(255, 0, 0, 255))
-        Circle(center=(300, 300), radius=60,
-               fill_color=(0, 128, 255, 200))
+        TRectangle(pos=(50, 50), size=(200, 100),
+                   fill_color=(255, 0, 0, 255))
+        TCircle(center=(300, 300), radius=60,
+                fill_color=(0, 128, 255, 200))
 """
 import atexit as _atexit
 import os as _os
@@ -235,6 +235,11 @@ cdef class ThorInstruction(Instruction):
         self._gl_canvas.draw(False)
         self._gl_canvas.sync()
 
+        # Skip manual GL restore — Kivy handles state reset via
+        # the parent RenderContext.  Our manual reset was actually
+        # clobbering Kivy's own GL state (buttons, transitions).
+        return 0
+
         # ═══════════════════════════════════════════════════════
         #  Restore Kivy GL state
         #  (copied from Kivy Callback.apply + reset_context)
@@ -297,9 +302,9 @@ cdef class ThorInstruction(Instruction):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Rectangle
+#  TRectangle
 # ═══════════════════════════════════════════════════════════════════
-cdef class Rectangle(ThorInstruction):
+cdef class TRectangle(ThorInstruction):
     """Axis-aligned filled / stroked rectangle.
 
     Kwargs:
@@ -379,9 +384,9 @@ cdef class Rectangle(ThorInstruction):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  RoundedRectangle
+#  TRoundedRectangle
 # ═══════════════════════════════════════════════════════════════════
-cdef class RoundedRectangle(ThorInstruction):
+cdef class TRoundedRectangle(ThorInstruction):
     """Rounded-corner rectangle."""
     cdef float _x, _y, _w, _h, _rx, _ry
     cdef tuple _fill
@@ -475,9 +480,9 @@ cdef class RoundedRectangle(ThorInstruction):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Circle
+#  TCircle
 # ═══════════════════════════════════════════════════════════════════
-cdef class Circle(ThorInstruction):
+cdef class TCircle(ThorInstruction):
     """Circle or ellipse."""
     cdef float _cx, _cy, _rx, _ry
     cdef tuple _fill
@@ -564,9 +569,9 @@ cdef class Circle(ThorInstruction):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Triangle
+#  TTriangle
 # ═══════════════════════════════════════════════════════════════════
-cdef class Triangle(ThorInstruction):
+cdef class TTriangle(ThorInstruction):
     """Triangle from three vertices."""
     cdef tuple _pts
     cdef tuple _fill
@@ -636,9 +641,9 @@ cdef class Triangle(ThorInstruction):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Quad
+#  TQuad
 # ═══════════════════════════════════════════════════════════════════
-cdef class Quad(ThorInstruction):
+cdef class TQuad(ThorInstruction):
     """Quadrilateral from four vertices."""
     cdef tuple _pts
     cdef tuple _fill

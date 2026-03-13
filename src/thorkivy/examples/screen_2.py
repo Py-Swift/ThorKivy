@@ -9,9 +9,9 @@ from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle as KivyRect
 
 from thorkivy.instructions import (
-    Rectangle,
-    RoundedRectangle,
-    Circle,
+    TRectangle,
+    TRoundedRectangle,
+    TCircle,
 )
 
 COLS = 8
@@ -31,7 +31,7 @@ class GridCanvas(Widget):
         self._tiles = []
         tile_w = 80
         tile_h = 70
-        shapes = [Rectangle, RoundedRectangle, Circle]
+        shapes = [TRectangle, TRoundedRectangle, TCircle]
 
         with self.canvas:
             for row in range(ROWS):
@@ -41,21 +41,21 @@ class GridCanvas(Widget):
                     idx = row * COLS + col
                     ShapeClass = shapes[idx % 3]
 
-                    if ShapeClass is Circle:
-                        shape = Circle(
+                    if ShapeClass is TCircle:
+                        shape = TCircle(
                             center=(x + tile_w / 2, y + tile_h / 2),
                             radius=min(tile_w, tile_h) / 2 - 4,
                             fill_color=(200, 200, 200, 255),
                         )
-                    elif ShapeClass is RoundedRectangle:
-                        shape = RoundedRectangle(
+                    elif ShapeClass is TRoundedRectangle:
+                        shape = TRoundedRectangle(
                             pos=(x + 4, y + 4),
                             size=(tile_w - 8, tile_h - 8),
                             radius=8,
                             fill_color=(200, 200, 200, 255),
                         )
                     else:
-                        shape = Rectangle(
+                        shape = TRectangle(
                             pos=(x + 4, y + 4),
                             size=(tile_w - 8, tile_h - 8),
                             fill_color=(200, 200, 200, 255),
@@ -90,7 +90,7 @@ class GridCanvas(Widget):
             # Size pulse
             scale = 0.85 + 0.15 * sin(t * 2.0 + phase)
 
-            if isinstance(shape, Circle):
+            if isinstance(shape, TCircle):
                 base_r = min(tw, th) / 2 - 4
                 shape.radius = base_r * scale
                 # Slight position wobble
