@@ -736,7 +736,6 @@ cdef class ThorSvg(ThorInstruction):
     cdef bint   _picture_added
     cdef bint   _content_dirty  # need full SVG reload
     cdef bint   _transform_dirty  # just need translate/size update
-    cdef bint   _needs_render    # gate for update/draw/sync
 
     def __init__(self, **kwargs):
         raw = kwargs.pop("data", None)
@@ -752,15 +751,7 @@ cdef class ThorSvg(ThorInstruction):
         self._picture_added = False
         self._content_dirty = True
         self._transform_dirty = True
-        self._needs_render = True
         ThorInstruction.__init__(self, **kwargs)
-
-    cdef int apply(self) except -1:
-        if not self._needs_render:
-            return 0
-        cdef int ret = ThorInstruction.apply(self)
-        self._needs_render = False
-        return ret
 
     cdef void _rebuild(self):
         if not self._dirty:
@@ -822,7 +813,6 @@ cdef class ThorSvg(ThorInstruction):
             value = value.encode("utf-8")
         self._data = value
         self._content_dirty = True
-        self._needs_render = True
         self._mark_dirty()
 
     @property
@@ -833,7 +823,6 @@ cdef class ThorSvg(ThorInstruction):
     def source(self, value):
         self._source = value
         self._content_dirty = True
-        self._needs_render = True
         self._mark_dirty()
 
     @property
@@ -843,7 +832,6 @@ cdef class ThorSvg(ThorInstruction):
     def pos(self, value):
         self._x, self._y = value
         self._transform_dirty = True
-        self._needs_render = True
         self._mark_dirty()
 
     @property
@@ -853,5 +841,4 @@ cdef class ThorSvg(ThorInstruction):
     def size(self, value):
         self._w, self._h = value
         self._transform_dirty = True
-        self._needs_render = True
         self._mark_dirty()
