@@ -9,11 +9,11 @@ from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle as KivyRect
 
 from thorkivy.instructions import (
-    TRectangle,
-    TRoundedRectangle,
-    TCircle,
-    TTriangle,
-    TQuad,
+    ThorRectangle,
+    ThorRoundedRectangle,
+    ThorCircle,
+    ThorTriangle,
+    ThorQuad,
 )
 
 
@@ -36,33 +36,33 @@ class ThorCanvas(Widget):
 
         with self.canvas:
             # Red rectangle
-            self._rect = TRectangle(
+            self._rect = ThorRectangle(
                 pos=(50, 50), size=(200, 120),
                 fill_color=(220, 40, 40, 255),
             )
 
             # Blue rounded rectangle with white stroke
-            self._rrect = TRoundedRectangle(
+            self._rrect = ThorRoundedRectangle(
                 pos=(300, 50), size=(200, 120), radius=20,
                 fill_color=(30, 100, 220, 255),
                 stroke_color=(255, 255, 255, 255), stroke_width=3,
             )
 
             # Green circle
-            self._circle = TCircle(
+            self._circle = ThorCircle(
                 center=(150, 320), radius=80,
                 fill_color=(40, 200, 80, 255),
             )
 
             # Orange triangle
-            self._tri = TTriangle(
+            self._tri = ThorTriangle(
                 points=(400, 220, 500, 400, 300, 400),
                 fill_color=(240, 160, 30, 255),
                 stroke_color=(0, 0, 0, 200), stroke_width=2,
             )
 
             # Purple quad
-            self._quad = TQuad(
+            self._quad = ThorQuad(
                 points=(550, 50, 750, 80, 720, 200, 530, 180),
                 fill_color=(160, 50, 220, 255),
             )

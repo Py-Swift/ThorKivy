@@ -9,9 +9,9 @@ from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle as KivyRect
 
 from thorkivy.instructions import (
-    TRectangle,
-    TRoundedRectangle,
-    TCircle,
+    ThorRectangle,
+    ThorRoundedRectangle,
+    ThorCircle,
 )
 
 COLS = 8
@@ -31,7 +31,7 @@ class GridCanvas(Widget):
         self._tiles = []
         tile_w = 80
         tile_h = 70
-        shapes = [TRectangle, TRoundedRectangle, TCircle]
+        shapes = [ThorRectangle, ThorRoundedRectangle, ThorCircle]
 
         with self.canvas:
             for row in range(ROWS):
@@ -41,21 +41,21 @@ class GridCanvas(Widget):
                     idx = row * COLS + col
                     ShapeClass = shapes[idx % 3]
 
-                    if ShapeClass is TCircle:
-                        shape = TCircle(
+                    if ShapeClass is ThorCircle:
+                        shape = ThorCircle(
                             center=(x + tile_w / 2, y + tile_h / 2),
                             radius=min(tile_w, tile_h) / 2 - 4,
                             fill_color=(200, 200, 200, 255),
                         )
-                    elif ShapeClass is TRoundedRectangle:
-                        shape = TRoundedRectangle(
+                    elif ShapeClass is ThorRoundedRectangle:
+                        shape = ThorRoundedRectangle(
                             pos=(x + 4, y + 4),
                             size=(tile_w - 8, tile_h - 8),
                             radius=8,
                             fill_color=(200, 200, 200, 255),
                         )
                     else:
-                        shape = TRectangle(
+                        shape = ThorRectangle(
                             pos=(x + 4, y + 4),
                             size=(tile_w - 8, tile_h - 8),
                             fill_color=(200, 200, 200, 255),
@@ -90,7 +90,7 @@ class GridCanvas(Widget):
             # Size pulse
             scale = 0.85 + 0.15 * sin(t * 2.0 + phase)
 
-            if isinstance(shape, TCircle):
+            if isinstance(shape, ThorCircle):
                 base_r = min(tw, th) / 2 - 4
                 shape.radius = base_r * scale
                 # Slight position wobble

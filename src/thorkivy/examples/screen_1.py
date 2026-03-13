@@ -9,11 +9,11 @@ from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle as KivyRect
 
 from thorkivy.instructions import (
-    TRectangle,
-    TRoundedRectangle,
-    TCircle,
-    TTriangle,
-    TQuad,
+    ThorRectangle,
+    ThorRoundedRectangle,
+    ThorCircle,
+    ThorTriangle,
+    ThorQuad,
 )
 
 
@@ -41,7 +41,7 @@ class RingsCanvas(Widget):
             self._rings = []
             for i, col in enumerate(ring_colors):
                 r = 40 + i * 35
-                ring = TCircle(
+                ring = ThorCircle(
                     center=(400, 300), radius=r,
                     fill_color=(0, 0, 0, 0),
                     stroke_color=col, stroke_width=3 + i,
@@ -49,26 +49,26 @@ class RingsCanvas(Widget):
                 self._rings.append(ring)
 
             # ── Pulsing center dot ─────────────────────────────
-            self._dot = TCircle(
+            self._dot = ThorCircle(
                 center=(400, 300), radius=18,
                 fill_color=(255, 255, 255, 220),
             )
 
             # ── Orbiting shapes ────────────────────────────────
-            self._orb_rect = TRectangle(
+            self._orb_rect = ThorRectangle(
                 pos=(0, 0), size=(50, 30),
                 fill_color=(255, 100, 60, 200),
             )
-            self._orb_rrect = TRoundedRectangle(
+            self._orb_rrect = ThorRoundedRectangle(
                 pos=(0, 0), size=(45, 45), radius=10,
                 fill_color=(60, 200, 255, 180),
                 stroke_color=(255, 255, 255, 100), stroke_width=1,
             )
-            self._orb_tri = TTriangle(
+            self._orb_tri = ThorTriangle(
                 points=(0, 0, 20, 35, -20, 35),
                 fill_color=(255, 220, 50, 200),
             )
-            self._orb_quad = TQuad(
+            self._orb_quad = ThorQuad(
                 points=(0, 0, 30, 5, 25, 30, -5, 25),
                 fill_color=(180, 60, 255, 170),
             )

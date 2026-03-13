@@ -12,9 +12,9 @@ does the ThorVG work and then resets GL state exactly like Kivy's own
 Usage::
 
     with self.canvas.after:
-        TRectangle(pos=(50, 50), size=(200, 100),
+        ThorRectangle(pos=(50, 50), size=(200, 100),
                    fill_color=(255, 0, 0, 255))
-        TCircle(center=(300, 300), radius=60,
+        ThorCircle(center=(300, 300), radius=60,
                 fill_color=(0, 128, 255, 200))
 """
 import atexit as _atexit
@@ -302,9 +302,9 @@ cdef class ThorInstruction(Instruction):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  TRectangle
+#  ThorRectangle
 # ═══════════════════════════════════════════════════════════════════
-cdef class TRectangle(ThorInstruction):
+cdef class ThorRectangle(ThorInstruction):
     """Axis-aligned filled / stroked rectangle.
 
     Kwargs:
@@ -384,9 +384,9 @@ cdef class TRectangle(ThorInstruction):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  TRoundedRectangle
+#  ThorRoundedRectangle
 # ═══════════════════════════════════════════════════════════════════
-cdef class TRoundedRectangle(ThorInstruction):
+cdef class ThorRoundedRectangle(ThorInstruction):
     """Rounded-corner rectangle."""
     cdef float _x, _y, _w, _h, _rx, _ry
     cdef tuple _fill
@@ -480,9 +480,9 @@ cdef class TRoundedRectangle(ThorInstruction):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  TCircle
+#  ThorCircle
 # ═══════════════════════════════════════════════════════════════════
-cdef class TCircle(ThorInstruction):
+cdef class ThorCircle(ThorInstruction):
     """Circle or ellipse."""
     cdef float _cx, _cy, _rx, _ry
     cdef tuple _fill
@@ -569,9 +569,9 @@ cdef class TCircle(ThorInstruction):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  TTriangle
+#  ThorTriangle
 # ═══════════════════════════════════════════════════════════════════
-cdef class TTriangle(ThorInstruction):
+cdef class ThorTriangle(ThorInstruction):
     """Triangle from three vertices."""
     cdef tuple _pts
     cdef tuple _fill
@@ -641,9 +641,9 @@ cdef class TTriangle(ThorInstruction):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  TQuad
+#  ThorQuad
 # ═══════════════════════════════════════════════════════════════════
-cdef class TQuad(ThorInstruction):
+cdef class ThorQuad(ThorInstruction):
     """Quadrilateral from four vertices."""
     cdef tuple _pts
     cdef tuple _fill

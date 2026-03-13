@@ -9,35 +9,35 @@ so they can be used directly in KV language::
 
     <MyWidget>:
         canvas:
-            TRectangle:
+            ThorRectangle:
                 pos: self.pos
                 size: self.size
                 fill_color: 255, 0, 0, 255
-            TCircle:
+            ThorCircle:
                 center: self.center
                 radius: 60
                 fill_color: 0, 128, 255, 200
 """
 from thorkivy.instructions import (
     ThorInstruction,
-    TRectangle,
-    TRoundedRectangle,
-    TCircle,
-    TTriangle,
-    TQuad,
+    ThorRectangle,
+    ThorRoundedRectangle,
+    ThorCircle,
+    ThorTriangle,
+    ThorQuad,
 )
 
 __all__ = [
     "ThorInstruction",
-    "TRectangle",
-    "TRoundedRectangle",
-    "TCircle",
-    "TTriangle",
-    "TQuad",
+    "ThorRectangle",
+    "ThorRoundedRectangle",
+    "ThorCircle",
+    "ThorTriangle",
+    "ThorQuad",
 ]
 
 # ── Register with Kivy Factory for KV language support ─────────
 from kivy.factory import Factory
 
-for _cls in (TRectangle, TRoundedRectangle, TCircle, TTriangle, TQuad):
+for _cls in (ThorRectangle, ThorRoundedRectangle, ThorCircle, ThorTriangle, ThorQuad):
     Factory.register(_cls.__name__, cls=_cls)

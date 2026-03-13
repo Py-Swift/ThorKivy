@@ -7,9 +7,9 @@ Each class is a Kivy ``Instruction`` subclass that renders via ThorVG's
 instructions::
 
     with widget.canvas.after:
-        TRectangle(pos=(50, 50), size=(200, 100),
+        ThorRectangle(pos=(50, 50), size=(200, 100),
                    fill_color=(255, 0, 0, 255))
-        TCircle(center=(300, 300), radius=60,
+        ThorCircle(center=(300, 300), radius=60,
                 fill_color=(0, 128, 255, 200))
 
 Colors are 0–255 integers (RGB or RGBA).  Omitting alpha defaults to 255.
@@ -26,12 +26,12 @@ class ThorInstruction:
     """
     ...
 
-class TRectangle(ThorInstruction):
+class ThorRectangle(ThorInstruction):
     """Axis-aligned filled and/or stroked rectangle.
 
     Example::
 
-        TRectangle(pos=(10, 10), size=(200, 100),
+        ThorRectangle(pos=(10, 10), size=(200, 100),
                    fill_color=(255, 0, 0),
                    stroke_color=(0, 0, 0), stroke_width=2)
     """
@@ -92,12 +92,12 @@ class TRectangle(ThorInstruction):
     @stroke_width.setter
     def stroke_width(self, value: float) -> None: ...
 
-class TRoundedRectangle(ThorInstruction):
+class ThorRoundedRectangle(ThorInstruction):
     """Rectangle with rounded corners.
 
     Example::
 
-        TRoundedRectangle(pos=(10, 10), size=(200, 100), radius=15,
+        ThorRoundedRectangle(pos=(10, 10), size=(200, 100), radius=15,
                           fill_color=(100, 200, 255))
     """
 
@@ -166,12 +166,12 @@ class TRoundedRectangle(ThorInstruction):
     @stroke_width.setter
     def stroke_width(self, value: float) -> None: ...
 
-class TCircle(ThorInstruction):
+class ThorCircle(ThorInstruction):
     """Circle or ellipse.
 
     Example::
 
-        TCircle(center=(200, 200), radius=80,
+        ThorCircle(center=(200, 200), radius=80,
                 fill_color=(0, 128, 255, 200))
 
     Pass ``radius=(rx, ry)`` for an ellipse.
@@ -233,12 +233,12 @@ class TCircle(ThorInstruction):
     @stroke_width.setter
     def stroke_width(self, value: float) -> None: ...
 
-class TTriangle(ThorInstruction):
+class ThorTriangle(ThorInstruction):
     """Triangle defined by three vertices.
 
     Example::
 
-        TTriangle(points=(100, 50, 50, 150, 150, 150),
+        ThorTriangle(points=(100, 50, 50, 150, 150, 150),
                   fill_color=(255, 200, 0))
     """
 
@@ -289,12 +289,12 @@ class TTriangle(ThorInstruction):
     @stroke_width.setter
     def stroke_width(self, value: float) -> None: ...
 
-class TQuad(ThorInstruction):
+class ThorQuad(ThorInstruction):
     """Arbitrary quadrilateral defined by four vertices.
 
     Example::
 
-        TQuad(points=(50, 50, 200, 30, 220, 180, 70, 200),
+        ThorQuad(points=(50, 50, 200, 30, 220, 180, 70, 200),
               fill_color=(180, 80, 255))
     """
 
