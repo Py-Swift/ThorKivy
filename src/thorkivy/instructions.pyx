@@ -28,6 +28,7 @@ from libc.stdint cimport uint32_t, int32_t
 from kivy.graphics.instructions cimport (
     Instruction,
     CanvasBase,
+    Canvas,
     RenderContext,
     getActiveContext,
     reset_gl_context,
@@ -125,7 +126,7 @@ cdef object _engine = None
 cdef void _ensure_engine():
     
     if isReady(): return
-    
+
     global _engine_ready, _engine
     _engine = Engine(threads=0)
     _engine.__enter__()
@@ -1114,3 +1115,25 @@ cdef class ThorGroup(CanvasBase):
         self._gl_canvas.sync()
 
         return 0
+
+
+cdef class ThorCanvas(Canvas):
+    
+    thor_group: ThorGroup
+    cdef list   _thor_children
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.thor_group = ThorGroup()
+        self.add(self.thor_group)
+
+
+    cpdef add(self, Instruction c):
+        Canvas.add(self, c)
+        if isinstance(c, ThorInstruction):
+            self.thor_group.add(c)
+
+    cpdef remove(self, Instruction c):
+        if isinstance(c, ThorInstruction):
+            self.thor_group.remove(c)
+        Canvas.remove(self, c)

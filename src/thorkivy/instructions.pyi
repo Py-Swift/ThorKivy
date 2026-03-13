@@ -16,6 +16,7 @@ Colors are 0–255 integers (RGB or RGBA).  Omitting alpha defaults to 255.
 """
 
 from typing import Sequence
+from kivy.graphics import Instruction, CanvasBase
 
 class ThorInstruction:
     """Base class for all ThorVG canvas instructions.

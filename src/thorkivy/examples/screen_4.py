@@ -17,6 +17,8 @@ from kivy.properties import (
 )
 
 import thorkivy  # noqa: F401 — registers Factory names
+from thorkivy.instructions import ThorGroup
+from thorkivy.instructions import ThorRoundedRectangle
 
 Builder.load_string("""
 <ClockFace>:
@@ -28,7 +30,7 @@ Builder.load_string("""
             pos: self.pos
             size: self.size
 
-    canvas:
+    canvas.after:
         
         # ── outer ring ──
         ThorCircle:
@@ -109,8 +111,8 @@ class ClockFace(Widget):
     time_str = ""
 
     def __init__(self, **kwargs):
-        self.canvas
         super().__init__(**kwargs)
+        #self.canvas.after = ThorGroup()  # use ThorGroup as root canvas to test grouping + transforms
         self._markers = []
         self.bind(size=self._on_layout, pos=self._on_layout)
         Clock.schedule_interval(self._tick, 1 / 30.0)
@@ -125,11 +127,12 @@ class ClockFace(Widget):
 
     def _rebuild_markers(self):
         # Remove old markers
+        _c = self.canvas
         for m in self._markers:
-            self.canvas.remove(m)
+            _c.remove(m)
         self._markers.clear()
 
-        from thorkivy.instructions import ThorRoundedRectangle
+        
         for i in range(12):
             angle = math.radians(90 - i * 30)
             dist = self.clock_r - 14
@@ -145,7 +148,7 @@ class ClockFace(Widget):
                 radius=2,
                 fill_color=col,
             )
-            self.canvas.add(marker)
+            _c.add(marker)
             self._markers.append(marker)
 
     def _tick(self, dt):
