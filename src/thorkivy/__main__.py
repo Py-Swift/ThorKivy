@@ -7,6 +7,7 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle as KivyRect
 
+
 from thorkivy.instructions import (
     Rectangle,
     RoundedRectangle,
@@ -20,6 +21,18 @@ class ThorCanvas(Widget):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+
+        # Overlay a semi-transparent Kivy rectangle on top of the ThorVG shapes, 
+        # to verify that the Kivy canvas is preserved and composited correctly.
+        with self.canvas.after:
+            Color(0.1, 0.1, 0.1, 0.75)
+            self.overlay = KivyRect(pos=(60, 0), size=(320, 320))
+
+        # Draw a dark orange background rect using Kivy's native instructions, behind the ThorVG shapes.
+        with self.canvas.before:
+            Color(0.1, 0.1, 0.0, 1)
+            self._bg = KivyRect(pos=(0, 0), size=self.size)
 
         with self.canvas:
             # Red rectangle
@@ -53,6 +66,9 @@ class ThorCanvas(Widget):
                 points=(550, 50, 750, 80, 720, 200, 530, 180),
                 fill_color=(160, 50, 220, 255),
             )
+
+            
+        
 
         # animate: bounce circle, triangle, and resize rounded rect
         self._time = 0.0
@@ -96,10 +112,11 @@ class ThorCanvas(Widget):
             530 + 7 * s(t * 2.0), 180 + 6 * s(t * 2.8),
         )
 
-    def on_touch_move(self, touch):
-        """Drag the circle around."""
-        self._circle.center = (touch.x, touch.y)
-        return True
+        self.overlay.pos = (80, 60 + (20 * math.sin(t * 1.2)))
+
+    def on_size(self, _, size):
+        """Keep the Kivy background rect sized to the window."""
+        self._bg.size = size
 
 
 class ThorKivyApp(App):
@@ -109,12 +126,14 @@ class ThorKivyApp(App):
         return ThorCanvas()
     
     def on_start(self):
-        Clock.schedule_once(self.capture_screenshot, 5)
+        Clock.schedule_once(self.capture_screenshot, 8)
         return super().on_start()
 
     def capture_screenshot(self, dt):
-        print("Capturing screenshot to thorkivy_demo.png...")
+        print("Capturing screenshot to thorkivy_demo.png...", flush=True)
         self.root.export_to_png("thorkivy_demo.png")
+        #print("Screenshot saved. Stopping app.", flush=True)
+        #self.stop()
 
 def main():
     ThorKivyApp().run()

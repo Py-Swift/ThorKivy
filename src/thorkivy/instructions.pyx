@@ -1,115 +1,108 @@
 # cython: language_level=3
 # distutils: language = c++
 """
-ThorKivy canvas instructions — ThorVG vector shapes rendered via GlCanvas
-directly into Kivy's active GL framebuffer.
+ThorKivy canvas instructions — proper Kivy ``Instruction`` subclasses that
+render ThorVG vector shapes via ``GlCanvas`` into Kivy's GL pipeline.
 
-Architecture
-~~~~~~~~~~~~
-Each shape class is a plain Python object that, on creation inside a
-``with canvas:`` block, injects a Kivy ``Callback`` instruction.
-The callback is invoked every frame by Kivy's own render loop (no
-cross-module cdef vtable issues).  Inside the callback we:
-
-1. Read the current FBO / viewport via ``glGetIntegerv``.
-2. ``target()`` a GlCanvas at that FBO.
-3. ``update()`` → ``draw(False)`` → ``sync()`` (composite, don't clear).
-4. Restore GL state so Kivy can keep rendering.
+Each shape is a ``cdef class`` inheriting from ``Instruction``.  Kivy's
+render loop calls ``apply()`` on every instruction each frame; our override
+does the ThorVG work and then resets GL state exactly like Kivy's own
+``Callback(reset_context=True)`` does.
 
 Usage::
 
-    from thorkivy.instructions import Rectangle, Circle
-
-    with self.canvas:
+    with self.canvas.after:
         Rectangle(pos=(50, 50), size=(200, 100),
                   fill_color=(255, 0, 0, 255))
         Circle(center=(300, 300), radius=60,
-               fill_color=(0, 128, 255, 200),
-               stroke_color=(0, 0, 0), stroke_width=2)
+               fill_color=(0, 128, 255, 200))
 """
 import atexit as _atexit
-import ctypes as _ctypes
 import os as _os
 
 from libc.stdint cimport uint32_t, int32_t
 
-from kivy.graphics import Callback as _Callback
+# ---------------------------------------------------------------------------
+#  cimport Kivy internals — this is the whole point: real Instructions
+# ---------------------------------------------------------------------------
+from kivy.graphics.instructions cimport (
+    Instruction,
+    RenderContext,
+    getActiveContext,
+    reset_gl_context,
+)
+from kivy.graphics.context cimport get_context, Context
+from kivy.graphics.shader cimport Shader
 from kivy.graphics.cgl cimport (
     cgl,
     GLint,
+    GLuint,
+    GLenum,
     GL_FRAMEBUFFER_BINDING,
     GL_VIEWPORT,
     GL_ARRAY_BUFFER,
     GL_ELEMENT_ARRAY_BUFFER,
+    GL_BLEND,
+    GL_DEPTH_TEST,
+    GL_SCISSOR_TEST,
+    GL_STENCIL_TEST,
+    GL_CULL_FACE,
+    GL_SRC_ALPHA,
+    GL_ONE,
+    GL_ONE_MINUS_SRC_ALPHA,
+    GL_TEXTURE0,
+    GL_TEXTURE_2D,
+    GL_FRAMEBUFFER,
+    GL_UNPACK_ALIGNMENT,
 )
 from thorvg_cython import Engine, GlCanvas, Shape, Colorspace
 
-# ---------------------------------------------------------------------------
-#  Preload ANGLE dylibs so thorvg's dlopen() finds them already mapped.
-# ---------------------------------------------------------------------------
-def _preload_angle():
-    """Ensure ANGLE dylibs are findable by thorvg's dlopen().
 
-    thorvg's patched _glLoad() calls dlopen("libGLESv2.dylib") with a bare
-    name.  macOS dlopen searches $DYLD_LIBRARY_PATH for bare-name libraries.
-    We add kivy's .dylibs directory to DYLD_LIBRARY_PATH so thorvg can find
-    ANGLE's libGLESv2.dylib and libEGL.dylib at runtime.
-    """
+# ═══════════════════════════════════════════════════════════════════
+#  ANGLE preload (unchanged — keeps dlopen happy on macOS)
+# ═══════════════════════════════════════════════════════════════════
+def _preload_angle():
     try:
         import kivy
-        kivy_dylibs = _os.path.join(_os.path.dirname(kivy.__file__), ".dylibs")
-        if _os.path.isdir(kivy_dylibs):
-            # Set DYLD_LIBRARY_PATH so dlopen("libGLESv2.dylib") finds it
-            existing = _os.environ.get("DYLD_LIBRARY_PATH", "")
-            if kivy_dylibs not in existing:
+        dylibs = _os.path.join(_os.path.dirname(kivy.__file__), ".dylibs")
+        if _os.path.isdir(dylibs):
+            cur = _os.environ.get("DYLD_LIBRARY_PATH", "")
+            if dylibs not in cur:
                 _os.environ["DYLD_LIBRARY_PATH"] = (
-                    kivy_dylibs + ":" + existing if existing else kivy_dylibs
+                    dylibs + ":" + cur if cur else dylibs
                 )
-                #print(f"[ThorKivy] DYLD_LIBRARY_PATH set to: {_os.environ['DYLD_LIBRARY_PATH']}")
-            # Also pre-load the dylibs so they're in the process image
             import ctypes
-            for name in ("libGLESv2.dylib", "libEGL.dylib"):
-                path = _os.path.join(kivy_dylibs, name)
-                if _os.path.isfile(path):
+            for n in ("libGLESv2.dylib", "libEGL.dylib"):
+                p = _os.path.join(dylibs, n)
+                if _os.path.isfile(p):
                     try:
-                        ctypes.CDLL(path)
-                        #print(f"[ThorKivy] Pre-loaded {path}")
-                    except OSError as e:
-                        pass  #print(f"[ThorKivy] WARNING: Could not pre-load {path}: {e}")
-    except Exception as e:
-        pass  #print(f"[ThorKivy] WARNING: _preload_angle failed: {e}")
+                        ctypes.CDLL(p)
+                    except OSError:
+                        pass
+    except Exception:
+        pass
 
 _preload_angle()
 
-# ---------------------------------------------------------------------------
-#  Query current EGL handles from ANGLE (libEGL.dylib)
-# ---------------------------------------------------------------------------
+
+# ═══════════════════════════════════════════════════════════════════
+#  EGL handle query
+# ═══════════════════════════════════════════════════════════════════
 def _get_egl_handles():
-    """Return (display, surface, context) as integer handles from ANGLE.
-
-    Kivy's ANGLE backend calls eglMakeCurrent() before rendering, so the
-    EGL context is already current.  We just need the handle values to
-    pass to thorvg's GlCanvas.target().
-    """
     try:
-        import ctypes
-        import kivy
-        egl_path = _os.path.join(
-            _os.path.dirname(kivy.__file__), ".dylibs", "libEGL.dylib"
+        import ctypes, kivy
+        egl = ctypes.CDLL(
+            _os.path.join(_os.path.dirname(kivy.__file__),
+                          ".dylibs", "libEGL.dylib")
         )
-        egl = ctypes.CDLL(egl_path)
-
-        # EGLDisplay eglGetCurrentDisplay(void)
         egl.eglGetCurrentDisplay.restype = ctypes.c_void_p
         egl.eglGetCurrentDisplay.argtypes = []
         display = egl.eglGetCurrentDisplay() or 0
 
-        # EGLSurface eglGetCurrentSurface(EGLint readdraw)  EGL_DRAW=0x3059
         egl.eglGetCurrentSurface.restype = ctypes.c_void_p
         egl.eglGetCurrentSurface.argtypes = [ctypes.c_int]
         surface = egl.eglGetCurrentSurface(0x3059) or 0
 
-        # EGLContext eglGetCurrentContext(void)
         egl.eglGetCurrentContext.restype = ctypes.c_void_p
         egl.eglGetCurrentContext.argtypes = []
         context = egl.eglGetCurrentContext() or 0
@@ -118,12 +111,12 @@ def _get_egl_handles():
     except Exception:
         return (0, 0, 0)
 
-# ---------------------------------------------------------------------------
+
+# ═══════════════════════════════════════════════════════════════════
 #  ThorVG engine singleton
-# ---------------------------------------------------------------------------
+# ═══════════════════════════════════════════════════════════════════
 cdef bint _engine_ready = False
 cdef object _engine = None
-
 
 cdef void _ensure_engine():
     global _engine_ready, _engine
@@ -132,7 +125,6 @@ cdef void _ensure_engine():
     _engine = Engine(threads=0)
     _engine.__enter__()
     _engine_ready = True
-
 
 def _shutdown_engine():
     global _engine_ready, _engine
@@ -148,151 +140,216 @@ _atexit.register(_shutdown_engine)
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  _ThorBase — shared GL plumbing (not a Kivy Instruction itself)
+#  Colour helper
 # ═══════════════════════════════════════════════════════════════════
-class _ThorBase:
-    """Mixin that owns a GlCanvas + Callback.
+cdef tuple _normalize_color(object c):
+    if len(c) == 3:
+        return (c[0], c[1], c[2], 255)
+    return tuple(c)
 
-    Subclasses set ``self._shape`` and call ``self._mark_dirty()`` when
-    properties change.  The base handles the rest.
+
+# ═══════════════════════════════════════════════════════════════════
+#  ThorInstruction  —  base cdef class(Instruction)
+# ═══════════════════════════════════════════════════════════════════
+cdef class ThorInstruction(Instruction):
+    """Base for every ThorVG shape instruction.
+
+    Owns one ``GlCanvas`` (created lazily on first ``apply``).
+    Subclasses override ``_rebuild()`` to set shape geometry.
     """
+
+    cdef object _gl_canvas
+    cdef object _tvg_shape
+    cdef bint   _shape_added
+    cdef bint   _dirty
+    cdef int    _cached_fbo
+    cdef unsigned int _cached_vp_w
+    cdef unsigned int _cached_vp_h
+    cdef int    _frame_count
 
     def __init__(self, **kwargs):
         _ensure_engine()
         self._gl_canvas = None
-        self._shape = None
+        self._tvg_shape = None
         self._shape_added = False
         self._dirty = True
         self._cached_fbo = -1
         self._cached_vp_w = 0
         self._cached_vp_h = 0
-        # inject a Callback into the currently-active Kivy canvas
-        self._cb = _Callback(self._on_apply, reset_context=True)
+        self._frame_count = 0
+        # Instruction.__init__ adds us to the active canvas
+        Instruction.__init__(self, **kwargs)
 
-    # ── called every frame by Kivy ─────────────────────────────
-    def _on_apply(self, instr):
-        cdef GLint fbo_id = 0
-        cdef GLint viewport[4]
+    # ── Kivy calls this every frame for each instruction ───────
+    cdef int apply(self) except -1:
+        cdef GLint saved_fbo = 0
+        cdef GLint saved_vp[4]
         cdef uint32_t vp_w, vp_h
-        #print(instr)
-        # Lazy-create GlCanvas on first apply (GL context is current here)
+        cdef int i
+        cdef RenderContext rcx
+        cdef Context ctx
+        cdef Shader shader
+
+        self._frame_count += 1
+        if self._frame_count <= 3:
+            import sys
+            print(f"[ThorKivy] apply() frame={self._frame_count} type={type(self).__name__}", flush=True)
+
+        # --- lazy-create GlCanvas (GL context is live here) ----
         if self._gl_canvas is None:
-            #print("[ThorKivy] Lazy-creating GlCanvas (GL context should be active)")
             self._gl_canvas = GlCanvas()
-            # Quick sanity check: try target(0,0,0,...) — if INVALID_ARGUMENT
-            # the C canvas handle is NULL (GL engine failed to init).
-            probe = self._gl_canvas.target(0, 0, 0, 0, 1, 1, Colorspace.ABGR8888S)
-            if probe.name == "INVALID_ARGUMENT":
-                pass  # GlCanvas C handle is NULL — GL engine failed to init
-            else:
-                pass  # GlCanvas created OK
             self._shape_added = False
             self._cached_fbo = -1
 
-        # rebuild geometry if dirty
+        # --- rebuild geometry if dirty -------------------------
         self._rebuild()
 
-        cgl.glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fbo_id)
-        cgl.glGetIntegerv(GL_VIEWPORT, viewport)
+        # --- save FBO + viewport (we restore them after) -------
+        cgl.glGetIntegerv(GL_FRAMEBUFFER_BINDING, &saved_fbo)
+        cgl.glGetIntegerv(GL_VIEWPORT, saved_vp)
 
-        #print(f"[ThorKivy1234] _on_apply: fbo={fbo_id} vp=({viewport[0]},{viewport[1]},{viewport[2]},{viewport[3]}) shape={self._shape} added={self._shape_added}")
+        if saved_vp[2] <= 0 or saved_vp[3] <= 0:
+            return 0
 
-        if viewport[2] <= 0 or viewport[3] <= 0:
-            #print("[ThorKivy] viewport zero, skipping")
-            return
+        vp_w = <uint32_t>saved_vp[2]
+        vp_h = <uint32_t>saved_vp[3]
 
-        vp_w = <uint32_t>viewport[2]
-        vp_h = <uint32_t>viewport[3]
-
-        if (fbo_id != self._cached_fbo or
+        # --- re-target if FBO / viewport changed ---------------
+        if (saved_fbo != self._cached_fbo or
                 vp_w != self._cached_vp_w or
                 vp_h != self._cached_vp_h):
             display, surface, context = _get_egl_handles()
-            #print(f"[ThorKivy] EGL handles: display=0x{display:x} surface=0x{surface:x} context=0x{context:x}")
-            res = self._gl_canvas.target(display, surface, context, <int32_t>fbo_id, vp_w, vp_h, Colorspace.ABGR8888S)
-            #print(f"[ThorKivy] target({fbo_id}, {vp_w}, {vp_h}) => {res} ({res.name})")
+            res = self._gl_canvas.target(
+                display, surface, context,
+                <int32_t>saved_fbo, vp_w, vp_h,
+                Colorspace.ABGR8888S,
+            )
             if res.name == "SUCCESS":
-                self._cached_fbo = fbo_id
+                self._cached_fbo = saved_fbo
                 self._cached_vp_w = vp_w
                 self._cached_vp_h = vp_h
             else:
-                #print("[ThorKivy] target FAILED — will retry next frame")
-                return
+                return 0
 
-        cgl.glBindBuffer(GL_ARRAY_BUFFER, 0)
+        # --- unbind Kivy VBO/EBO before thorvg work ------------
         cgl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
+        cgl.glBindBuffer(GL_ARRAY_BUFFER, 0)
 
+        # --- ThorVG render (composite, don't clear) ------------
         r1 = self._gl_canvas.update()
         r2 = self._gl_canvas.draw(False)
         r3 = self._gl_canvas.sync()
-        #print(f"[ThorKivy] update={r1.name} draw={r2.name} sync={r3.name}")
+        #if self._frame_count <= 3:
+        #    import sys
+        #    print(f"[ThorKivy] render done fbo={saved_fbo} vp={saved_vp[2]}x{saved_vp[3]} u={r1} d={r2} s={r3}", flush=True)
+        # DIAG: return before GL state restore — is sync or restore the culprit?
+        return 0
 
-    def _rebuild(self):
-        """Override in subclass."""
+        # ═══════════════════════════════════════════════════════
+        #  Restore Kivy GL state
+        #  (copied from Kivy Callback.apply + reset_context)
+        # ═══════════════════════════════════════════════════════
+        # Restore the FBO and viewport thorvg may have changed
+        cgl.glBindFramebuffer(GL_FRAMEBUFFER, <GLuint>saved_fbo)
+        cgl.glViewport(saved_vp[0], saved_vp[1],
+                       saved_vp[2], saved_vp[3])
+
+        # Reset GL flags to Kivy's expected defaults
+        cgl.glDisable(GL_DEPTH_TEST)
+        cgl.glDisable(GL_CULL_FACE)
+        cgl.glDisable(GL_SCISSOR_TEST)
+        cgl.glEnable(GL_BLEND)
+        cgl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        cgl.glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+                                GL_ONE, GL_ONE)
+        cgl.glUseProgram(0)
+
+        # Unbind every slot thorvg may have touched
+        for i in range(10):
+            cgl.glActiveTexture(GL_TEXTURE0 + i)
+            cgl.glBindTexture(GL_TEXTURE_2D, 0)
+            cgl.glDisableVertexAttribArray(i)
+            cgl.glBindBuffer(GL_ARRAY_BUFFER, 0)
+            cgl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
+
+        # Reset shader vertex formats so Kivy re-binds its own
+        ctx = get_context()
+        for obj in ctx.lr_shader:
+            try:
+                shader = obj()
+            except TypeError:
+                # some Kivy builds store tuples, not weakrefs
+                continue
+            if shader is None:
+                continue
+            shader.bind_vertex_format(None)
+
+        # Re-enter the active RenderContext (re-binds Kivy shader
+        # and textures)
+        rcx = getActiveContext()
+        if rcx is not None:
+            rcx.enter()
+            for index, texture in rcx.bind_texture.items():
+                rcx.set_texture(index, texture)
+
+        # Kivy's internal GL-context bookkeeping
+        reset_gl_context()
+        return 0
+
+    # ── subclass override point ────────────────────────────────
+    cdef void _rebuild(self):
         pass
 
-    def _mark_dirty(self):
+    # ── property-change helper ─────────────────────────────────
+    cdef void _mark_dirty(self):
         self._dirty = True
-        self._cb.ask_update()
+        self.flag_update()
 
 
 # ═══════════════════════════════════════════════════════════════════
 #  Rectangle
 # ═══════════════════════════════════════════════════════════════════
-class Rectangle(_ThorBase):
+cdef class Rectangle(ThorInstruction):
     """Axis-aligned filled / stroked rectangle.
 
     Kwargs:
-        pos:          (x, y)
-        size:         (w, h)
-        fill_color:   (r, g, b[, a])   0-255
-        stroke_color: (r, g, b[, a])   0-255
-        stroke_width: float
+        pos, size, fill_color, stroke_color, stroke_width
     """
+    cdef float _x, _y, _w, _h
+    cdef tuple _fill
+    cdef tuple _stroke
+    cdef float _stroke_width
 
     def __init__(self, **kwargs):
-        pos = kwargs.pop("pos", (0, 0))
-        size = kwargs.pop("size", (100, 100))
-        fill_color = kwargs.pop("fill_color", (255, 255, 255, 255))
-        stroke_color = kwargs.pop("stroke_color", None)
-        stroke_width = kwargs.pop("stroke_width", 0)
-        super().__init__(**kwargs)
+        self._x, self._y = kwargs.pop("pos", (0, 0))
+        self._w, self._h = kwargs.pop("size", (100, 100))
+        self._fill = _normalize_color(kwargs.pop("fill_color",
+                                                  (255, 255, 255, 255)))
+        sc = kwargs.pop("stroke_color", None)
+        self._stroke = _normalize_color(sc) if sc else None
+        self._stroke_width = kwargs.pop("stroke_width", 0)
+        ThorInstruction.__init__(self, **kwargs)
 
-        self._x, self._y = pos
-        self._w, self._h = size
-        self._fill = self._normalize_color(fill_color)
-        self._stroke = self._normalize_color(stroke_color) if stroke_color else None
-        self._stroke_width = stroke_width
-
-    @staticmethod
-    def _normalize_color(c):
-        if len(c) == 3:
-            return (c[0], c[1], c[2], 255)
-        return tuple(c)
-
-    def _rebuild(self):
-        if self._shape is None:
-            self._shape = Shape()
+    cdef void _rebuild(self):
+        if self._tvg_shape is None:
+            self._tvg_shape = Shape()
         if not self._dirty:
             return
-
-        self._shape.reset()
-        self._shape.append_rect(self._x, self._y, self._w, self._h)
-        self._shape.set_fill_color(*self._fill)
+        self._tvg_shape.reset()
+        self._tvg_shape.append_rect(self._x, self._y, self._w, self._h)
+        self._tvg_shape.set_fill_color(*self._fill)
         if self._stroke_width > 0 and self._stroke:
-            self._shape.set_stroke_width(self._stroke_width)
-            self._shape.set_stroke_color(*self._stroke)
-
+            self._tvg_shape.set_stroke_width(self._stroke_width)
+            self._tvg_shape.set_stroke_color(*self._stroke)
         if not self._shape_added:
-            self._gl_canvas.add(self._shape)
+            self._gl_canvas.add(self._tvg_shape)
             self._shape_added = True
         self._dirty = False
 
-    # ── properties ──────────────────────────────────────────────
+    # ── properties ─────────────────────────────────────────────
     @property
     def pos(self):
         return (self._x, self._y)
-
     @pos.setter
     def pos(self, value):
         self._x, self._y = value
@@ -301,7 +358,6 @@ class Rectangle(_ThorBase):
     @property
     def size(self):
         return (self._w, self._h)
-
     @size.setter
     def size(self, value):
         self._w, self._h = value
@@ -310,25 +366,22 @@ class Rectangle(_ThorBase):
     @property
     def fill_color(self):
         return self._fill
-
     @fill_color.setter
     def fill_color(self, value):
-        self._fill = self._normalize_color(value)
+        self._fill = _normalize_color(value)
         self._mark_dirty()
 
     @property
     def stroke_color(self):
         return self._stroke
-
     @stroke_color.setter
     def stroke_color(self, value):
-        self._stroke = self._normalize_color(value)
+        self._stroke = _normalize_color(value)
         self._mark_dirty()
 
     @property
     def stroke_width(self):
         return self._stroke_width
-
     @stroke_width.setter
     def stroke_width(self, value):
         self._stroke_width = value
@@ -338,57 +391,49 @@ class Rectangle(_ThorBase):
 # ═══════════════════════════════════════════════════════════════════
 #  RoundedRectangle
 # ═══════════════════════════════════════════════════════════════════
-class RoundedRectangle(_ThorBase):
-    """Rounded-corner rectangle.
-
-    Kwargs:
-        pos, size, fill_color, stroke_color, stroke_width — same as Rectangle
-        radius: scalar or (rx, ry)
-    """
+cdef class RoundedRectangle(ThorInstruction):
+    """Rounded-corner rectangle."""
+    cdef float _x, _y, _w, _h, _rx, _ry
+    cdef tuple _fill
+    cdef tuple _stroke
+    cdef float _stroke_width
 
     def __init__(self, **kwargs):
-        pos = kwargs.pop("pos", (0, 0))
-        size = kwargs.pop("size", (100, 100))
+        self._x, self._y = kwargs.pop("pos", (0, 0))
+        self._w, self._h = kwargs.pop("size", (100, 100))
         radius = kwargs.pop("radius", 0)
-        fill_color = kwargs.pop("fill_color", (255, 255, 255, 255))
-        stroke_color = kwargs.pop("stroke_color", None)
-        stroke_width = kwargs.pop("stroke_width", 0)
-        super().__init__(**kwargs)
-
-        self._x, self._y = pos
-        self._w, self._h = size
         if isinstance(radius, (list, tuple)):
             self._rx = radius[0]
             self._ry = radius[1] if len(radius) > 1 else radius[0]
         else:
             self._rx = self._ry = radius
-        self._fill = Rectangle._normalize_color(fill_color)
-        self._stroke = Rectangle._normalize_color(stroke_color) if stroke_color else None
-        self._stroke_width = stroke_width
+        self._fill = _normalize_color(kwargs.pop("fill_color",
+                                                  (255, 255, 255, 255)))
+        sc = kwargs.pop("stroke_color", None)
+        self._stroke = _normalize_color(sc) if sc else None
+        self._stroke_width = kwargs.pop("stroke_width", 0)
+        ThorInstruction.__init__(self, **kwargs)
 
-    def _rebuild(self):
-        if self._shape is None:
-            self._shape = Shape()
+    cdef void _rebuild(self):
+        if self._tvg_shape is None:
+            self._tvg_shape = Shape()
         if not self._dirty:
             return
-
-        self._shape.reset()
-        self._shape.append_rect(self._x, self._y, self._w, self._h,
-                                self._rx, self._ry)
-        self._shape.set_fill_color(*self._fill)
+        self._tvg_shape.reset()
+        self._tvg_shape.append_rect(self._x, self._y, self._w, self._h,
+                                    self._rx, self._ry)
+        self._tvg_shape.set_fill_color(*self._fill)
         if self._stroke_width > 0 and self._stroke:
-            self._shape.set_stroke_width(self._stroke_width)
-            self._shape.set_stroke_color(*self._stroke)
-
+            self._tvg_shape.set_stroke_width(self._stroke_width)
+            self._tvg_shape.set_stroke_color(*self._stroke)
         if not self._shape_added:
-            self._gl_canvas.add(self._shape)
+            self._gl_canvas.add(self._tvg_shape)
             self._shape_added = True
         self._dirty = False
 
     @property
     def pos(self):
         return (self._x, self._y)
-
     @pos.setter
     def pos(self, value):
         self._x, self._y = value
@@ -397,7 +442,6 @@ class RoundedRectangle(_ThorBase):
     @property
     def size(self):
         return (self._w, self._h)
-
     @size.setter
     def size(self, value):
         self._w, self._h = value
@@ -406,7 +450,6 @@ class RoundedRectangle(_ThorBase):
     @property
     def radius(self):
         return (self._rx, self._ry)
-
     @radius.setter
     def radius(self, value):
         if isinstance(value, (list, tuple)):
@@ -419,25 +462,22 @@ class RoundedRectangle(_ThorBase):
     @property
     def fill_color(self):
         return self._fill
-
     @fill_color.setter
     def fill_color(self, value):
-        self._fill = Rectangle._normalize_color(value)
+        self._fill = _normalize_color(value)
         self._mark_dirty()
 
     @property
     def stroke_color(self):
         return self._stroke
-
     @stroke_color.setter
     def stroke_color(self, value):
-        self._stroke = Rectangle._normalize_color(value)
+        self._stroke = _normalize_color(value)
         self._mark_dirty()
 
     @property
     def stroke_width(self):
         return self._stroke_width
-
     @stroke_width.setter
     def stroke_width(self, value):
         self._stroke_width = value
@@ -447,57 +487,48 @@ class RoundedRectangle(_ThorBase):
 # ═══════════════════════════════════════════════════════════════════
 #  Circle
 # ═══════════════════════════════════════════════════════════════════
-class Circle(_ThorBase):
-    """Circle or ellipse.
-
-    Kwargs:
-        center:       (cx, cy)
-        radius:       scalar (circle) or (rx, ry) (ellipse)
-        fill_color:   (r, g, b[, a])
-        stroke_color: (r, g, b[, a])
-        stroke_width: float
-    """
+cdef class Circle(ThorInstruction):
+    """Circle or ellipse."""
+    cdef float _cx, _cy, _rx, _ry
+    cdef tuple _fill
+    cdef tuple _stroke
+    cdef float _stroke_width
 
     def __init__(self, **kwargs):
-        center = kwargs.pop("center", (0, 0))
+        self._cx, self._cy = kwargs.pop("center", (0, 0))
         radius = kwargs.pop("radius", 50)
-        fill_color = kwargs.pop("fill_color", (255, 255, 255, 255))
-        stroke_color = kwargs.pop("stroke_color", None)
-        stroke_width = kwargs.pop("stroke_width", 0)
-        super().__init__(**kwargs)
-
-        self._cx, self._cy = center
         if isinstance(radius, (list, tuple)):
             self._rx = radius[0]
             self._ry = radius[1] if len(radius) > 1 else radius[0]
         else:
             self._rx = self._ry = radius
-        self._fill = Rectangle._normalize_color(fill_color)
-        self._stroke = Rectangle._normalize_color(stroke_color) if stroke_color else None
-        self._stroke_width = stroke_width
+        self._fill = _normalize_color(kwargs.pop("fill_color",
+                                                  (255, 255, 255, 255)))
+        sc = kwargs.pop("stroke_color", None)
+        self._stroke = _normalize_color(sc) if sc else None
+        self._stroke_width = kwargs.pop("stroke_width", 0)
+        ThorInstruction.__init__(self, **kwargs)
 
-    def _rebuild(self):
-        if self._shape is None:
-            self._shape = Shape()
+    cdef void _rebuild(self):
+        if self._tvg_shape is None:
+            self._tvg_shape = Shape()
         if not self._dirty:
             return
-
-        self._shape.reset()
-        self._shape.append_circle(self._cx, self._cy, self._rx, self._ry)
-        self._shape.set_fill_color(*self._fill)
+        self._tvg_shape.reset()
+        self._tvg_shape.append_circle(self._cx, self._cy,
+                                      self._rx, self._ry)
+        self._tvg_shape.set_fill_color(*self._fill)
         if self._stroke_width > 0 and self._stroke:
-            self._shape.set_stroke_width(self._stroke_width)
-            self._shape.set_stroke_color(*self._stroke)
-
+            self._tvg_shape.set_stroke_width(self._stroke_width)
+            self._tvg_shape.set_stroke_color(*self._stroke)
         if not self._shape_added:
-            self._gl_canvas.add(self._shape)
+            self._gl_canvas.add(self._tvg_shape)
             self._shape_added = True
         self._dirty = False
 
     @property
     def center(self):
         return (self._cx, self._cy)
-
     @center.setter
     def center(self, value):
         self._cx, self._cy = value
@@ -508,7 +539,6 @@ class Circle(_ThorBase):
         if self._rx == self._ry:
             return self._rx
         return (self._rx, self._ry)
-
     @radius.setter
     def radius(self, value):
         if isinstance(value, (list, tuple)):
@@ -521,25 +551,22 @@ class Circle(_ThorBase):
     @property
     def fill_color(self):
         return self._fill
-
     @fill_color.setter
     def fill_color(self, value):
-        self._fill = Rectangle._normalize_color(value)
+        self._fill = _normalize_color(value)
         self._mark_dirty()
 
     @property
     def stroke_color(self):
         return self._stroke
-
     @stroke_color.setter
     def stroke_color(self, value):
-        self._stroke = Rectangle._normalize_color(value)
+        self._stroke = _normalize_color(value)
         self._mark_dirty()
 
     @property
     def stroke_width(self):
         return self._stroke_width
-
     @stroke_width.setter
     def stroke_width(self, value):
         self._stroke_width = value
@@ -549,54 +576,45 @@ class Circle(_ThorBase):
 # ═══════════════════════════════════════════════════════════════════
 #  Triangle
 # ═══════════════════════════════════════════════════════════════════
-class Triangle(_ThorBase):
-    """Triangle from three vertices.
-
-    Kwargs:
-        points:       (x1, y1, x2, y2, x3, y3)
-        fill_color:   (r, g, b[, a])
-        stroke_color: (r, g, b[, a])
-        stroke_width: float
-    """
+cdef class Triangle(ThorInstruction):
+    """Triangle from three vertices."""
+    cdef tuple _pts
+    cdef tuple _fill
+    cdef tuple _stroke
+    cdef float _stroke_width
 
     def __init__(self, **kwargs):
-        points = kwargs.pop("points", (0, 0, 50, 100, 100, 0))
-        fill_color = kwargs.pop("fill_color", (255, 255, 255, 255))
-        stroke_color = kwargs.pop("stroke_color", None)
-        stroke_width = kwargs.pop("stroke_width", 0)
-        super().__init__(**kwargs)
+        self._pts = tuple(kwargs.pop("points", (0, 0, 50, 100, 100, 0)))
+        self._fill = _normalize_color(kwargs.pop("fill_color",
+                                                  (255, 255, 255, 255)))
+        sc = kwargs.pop("stroke_color", None)
+        self._stroke = _normalize_color(sc) if sc else None
+        self._stroke_width = kwargs.pop("stroke_width", 0)
+        ThorInstruction.__init__(self, **kwargs)
 
-        self._pts = tuple(points)
-        self._fill = Rectangle._normalize_color(fill_color)
-        self._stroke = Rectangle._normalize_color(stroke_color) if stroke_color else None
-        self._stroke_width = stroke_width
-
-    def _rebuild(self):
-        if self._shape is None:
-            self._shape = Shape()
+    cdef void _rebuild(self):
+        if self._tvg_shape is None:
+            self._tvg_shape = Shape()
         if not self._dirty:
             return
-
         p = self._pts
-        self._shape.reset()
-        self._shape.move_to(p[0], p[1])
-        self._shape.line_to(p[2], p[3])
-        self._shape.line_to(p[4], p[5])
-        self._shape.close()
-        self._shape.set_fill_color(*self._fill)
+        self._tvg_shape.reset()
+        self._tvg_shape.move_to(p[0], p[1])
+        self._tvg_shape.line_to(p[2], p[3])
+        self._tvg_shape.line_to(p[4], p[5])
+        self._tvg_shape.close()
+        self._tvg_shape.set_fill_color(*self._fill)
         if self._stroke_width > 0 and self._stroke:
-            self._shape.set_stroke_width(self._stroke_width)
-            self._shape.set_stroke_color(*self._stroke)
-
+            self._tvg_shape.set_stroke_width(self._stroke_width)
+            self._tvg_shape.set_stroke_color(*self._stroke)
         if not self._shape_added:
-            self._gl_canvas.add(self._shape)
+            self._gl_canvas.add(self._tvg_shape)
             self._shape_added = True
         self._dirty = False
 
     @property
     def points(self):
         return self._pts
-
     @points.setter
     def points(self, value):
         self._pts = tuple(value)
@@ -605,25 +623,22 @@ class Triangle(_ThorBase):
     @property
     def fill_color(self):
         return self._fill
-
     @fill_color.setter
     def fill_color(self, value):
-        self._fill = Rectangle._normalize_color(value)
+        self._fill = _normalize_color(value)
         self._mark_dirty()
 
     @property
     def stroke_color(self):
         return self._stroke
-
     @stroke_color.setter
     def stroke_color(self, value):
-        self._stroke = Rectangle._normalize_color(value)
+        self._stroke = _normalize_color(value)
         self._mark_dirty()
 
     @property
     def stroke_width(self):
         return self._stroke_width
-
     @stroke_width.setter
     def stroke_width(self, value):
         self._stroke_width = value
@@ -633,55 +648,47 @@ class Triangle(_ThorBase):
 # ═══════════════════════════════════════════════════════════════════
 #  Quad
 # ═══════════════════════════════════════════════════════════════════
-class Quad(_ThorBase):
-    """Quadrilateral from four vertices.
-
-    Kwargs:
-        points:       (x1, y1, x2, y2, x3, y3, x4, y4)
-        fill_color:   (r, g, b[, a])
-        stroke_color: (r, g, b[, a])
-        stroke_width: float
-    """
+cdef class Quad(ThorInstruction):
+    """Quadrilateral from four vertices."""
+    cdef tuple _pts
+    cdef tuple _fill
+    cdef tuple _stroke
+    cdef float _stroke_width
 
     def __init__(self, **kwargs):
-        points = kwargs.pop("points", (0, 0, 100, 0, 100, 100, 0, 100))
-        fill_color = kwargs.pop("fill_color", (255, 255, 255, 255))
-        stroke_color = kwargs.pop("stroke_color", None)
-        stroke_width = kwargs.pop("stroke_width", 0)
-        super().__init__(**kwargs)
+        self._pts = tuple(kwargs.pop("points",
+                                     (0, 0, 100, 0, 100, 100, 0, 100)))
+        self._fill = _normalize_color(kwargs.pop("fill_color",
+                                                  (255, 255, 255, 255)))
+        sc = kwargs.pop("stroke_color", None)
+        self._stroke = _normalize_color(sc) if sc else None
+        self._stroke_width = kwargs.pop("stroke_width", 0)
+        ThorInstruction.__init__(self, **kwargs)
 
-        self._pts = tuple(points)
-        self._fill = Rectangle._normalize_color(fill_color)
-        self._stroke = Rectangle._normalize_color(stroke_color) if stroke_color else None
-        self._stroke_width = stroke_width
-
-    def _rebuild(self):
-        if self._shape is None:
-            self._shape = Shape()
+    cdef void _rebuild(self):
+        if self._tvg_shape is None:
+            self._tvg_shape = Shape()
         if not self._dirty:
             return
-
         p = self._pts
-        self._shape.reset()
-        self._shape.move_to(p[0], p[1])
-        self._shape.line_to(p[2], p[3])
-        self._shape.line_to(p[4], p[5])
-        self._shape.line_to(p[6], p[7])
-        self._shape.close()
-        self._shape.set_fill_color(*self._fill)
+        self._tvg_shape.reset()
+        self._tvg_shape.move_to(p[0], p[1])
+        self._tvg_shape.line_to(p[2], p[3])
+        self._tvg_shape.line_to(p[4], p[5])
+        self._tvg_shape.line_to(p[6], p[7])
+        self._tvg_shape.close()
+        self._tvg_shape.set_fill_color(*self._fill)
         if self._stroke_width > 0 and self._stroke:
-            self._shape.set_stroke_width(self._stroke_width)
-            self._shape.set_stroke_color(*self._stroke)
-
+            self._tvg_shape.set_stroke_width(self._stroke_width)
+            self._tvg_shape.set_stroke_color(*self._stroke)
         if not self._shape_added:
-            self._gl_canvas.add(self._shape)
+            self._gl_canvas.add(self._tvg_shape)
             self._shape_added = True
         self._dirty = False
 
     @property
     def points(self):
         return self._pts
-
     @points.setter
     def points(self, value):
         self._pts = tuple(value)
@@ -690,25 +697,22 @@ class Quad(_ThorBase):
     @property
     def fill_color(self):
         return self._fill
-
     @fill_color.setter
     def fill_color(self, value):
-        self._fill = Rectangle._normalize_color(value)
+        self._fill = _normalize_color(value)
         self._mark_dirty()
 
     @property
     def stroke_color(self):
         return self._stroke
-
     @stroke_color.setter
     def stroke_color(self, value):
-        self._stroke = Rectangle._normalize_color(value)
+        self._stroke = _normalize_color(value)
         self._mark_dirty()
 
     @property
     def stroke_width(self):
         return self._stroke_width
-
     @stroke_width.setter
     def stroke_width(self, value):
         self._stroke_width = value
