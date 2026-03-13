@@ -519,26 +519,38 @@ class ThorScene(ThorInstruction):
 
 
 class ThorGroup:
-    """Batch-render group: one GlCanvas for all children.
+    """Batch-render group: one shared GlCanvas for all children.
 
-    Works like Kivy's ``InstructionGroup`` / ``CanvasBase``.
-    Children created inside ``with ThorGroup():`` are auto-collected.
-    One render pass per frame.
+    Owns one ``GlCanvas`` and pushes it to every child added via
+    ``add()``.  Children are ``ThorInstruction`` instances created
+    **outside** any ``with canvas:`` block.  The group is the sole
+    Kivy ``Instruction`` and handles ``update`` → ``draw`` → ``sync``.
 
     Skips ``update()`` if nothing changed — just ``draw()`` + ``sync()``.
 
     Example::
 
         with self.canvas:
-            with ThorGroup() as group:
-                self.rect = ThorRectangle(pos=(10, 10), size=(200, 100),
-                                          fill_color=(255, 0, 0))
-                self.circle = ThorCircle(center=(300, 300), radius=60,
-                                          fill_color=(0, 128, 255))
+            self.group = ThorGroup()
+
+        self.rect = ThorRectangle(pos=(10, 10), size=(200, 100),
+                                  fill_color=(255, 0, 0))
+        self.group.add(self.rect)
 
         self.rect.pos = (50, 50)  # propagates dirty to group
     """
 
     def __init__(self) -> None: ...
-    def __enter__(self) -> "ThorGroup": ...
-    def __exit__(self, *args: object) -> bool: ...
+
+    def add(self, child: ThorInstruction) -> None:
+        """Add a ThorInstruction to this group."""
+        ...
+
+    def remove(self, child: ThorInstruction) -> None:
+        """Remove a ThorInstruction from this group."""
+        ...
+
+    @property
+    def children(self) -> list[ThorInstruction]:
+        """Read-only list of children in this group."""
+        ...

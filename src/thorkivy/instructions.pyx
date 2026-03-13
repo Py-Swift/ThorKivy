@@ -150,24 +150,6 @@ cdef tuple _normalize_color(object c):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Active ThorScene stack — mirrors Kivy's ACTIVE_CANVAS / CANVAS_STACK
-# ═══════════════════════════════════════════════════════════════════
-cdef list _SCENE_STACK = []
-
-cdef inline object _get_active_scene():
-    if _SCENE_STACK:
-        return _SCENE_STACK[-1]
-    return None
-
-cdef list _GROUP_STACK = []
-
-cdef inline object _get_active_group():
-    if _GROUP_STACK:
-        return _GROUP_STACK[-1]
-    return None
-
-
-# ═══════════════════════════════════════════════════════════════════
 #  ThorInstruction  —  base cdef class(Instruction)
 # ═══════════════════════════════════════════════════════════════════
 cdef class ThorInstruction(Instruction):
@@ -176,9 +158,9 @@ cdef class ThorInstruction(Instruction):
     Owns one ``GlCanvas`` (created lazily on first ``apply``).
     Subclasses override ``_rebuild()`` to set shape geometry.
 
-    When created inside a ``with ThorScene():`` block the instruction
-    does **not** create its own ``GlCanvas`` — its paint is added to
-    the scene instead, and the scene does one batched render.
+    When added to a ``ThorGroup`` via ``group.add()``, the child
+    shares the group's ``GlCanvas`` — the group does one batched
+    render for all children.
     """
 
     cdef object _gl_canvas
@@ -189,8 +171,7 @@ cdef class ThorInstruction(Instruction):
     cdef unsigned int _cached_vp_w
     cdef unsigned int _cached_vp_h
     cdef int    _frame_count
-    cdef object _scene_parent   # ThorScene | None
-    cdef object _group_parent   # ThorGroup | None
+    cdef object _group          # ThorGroup | None
 
     def __init__(self, **kwargs):
         _ensure_engine()
@@ -202,9 +183,7 @@ cdef class ThorInstruction(Instruction):
         self._cached_vp_w = 0
         self._cached_vp_h = 0
         self._frame_count = 0
-        self._scene_parent = _get_active_scene()
-        self._group_parent = _get_active_group()
-        # Instruction.__init__ adds us to the active canvas
+        self._group = None
         Instruction.__init__(self, **kwargs)
 
     # ── Kivy calls this every frame for each instruction ───────
@@ -217,8 +196,8 @@ cdef class ThorInstruction(Instruction):
         cdef Context ctx
         cdef Shader shader
 
-        # --- scene/group-managed: just rebuild, parent does the draw --
-        if self._scene_parent is not None or self._group_parent is not None:
+        # --- group-managed: just rebuild, group does the draw ---
+        if self._group is not None:
             self._rebuild()
             return 0
 
@@ -327,46 +306,12 @@ cdef class ThorInstruction(Instruction):
     cdef void _rebuild(self):
         pass
 
-    # ── paint routing helpers ──────────────────────────────────
-    cdef void _add_paint(self):
-        """Add _tvg_shape to the owning canvas (scene / group / own GlCanvas)."""
-        if self._scene_parent is not None:
-            self._scene_parent._tvg_shape.add(self._tvg_shape)
-        elif self._group_parent is not None:
-            self._group_parent._gl_canvas.add(self._tvg_shape)
-        else:
-            self._gl_canvas.add(self._tvg_shape)
-        self._shape_added = True
-
-    cdef void _remove_paint(self):
-        """Remove _tvg_shape from the owning canvas."""
-        if self._scene_parent is not None:
-            try:
-                self._scene_parent._tvg_shape.remove(self._tvg_shape)
-            except Exception:
-                pass
-        elif self._group_parent is not None:
-            try:
-                self._group_parent._gl_canvas.remove(self._tvg_shape)
-            except Exception:
-                pass
-        else:
-            try:
-                self._gl_canvas.remove(self._tvg_shape)
-            except Exception:
-                pass
-        self._shape_added = False
-
     # ── property-change helper ─────────────────────────────────
     cdef void _mark_dirty(self):
         self._dirty = True
         self.flag_update()
-        # If scene-managed, also mark the scene dirty so it re-draws
-        if self._scene_parent is not None:
-            self._scene_parent._mark_dirty()
-        # If group-managed, propagate so the group re-updates
-        if self._group_parent is not None:
-            self._group_parent.flag_update()
+        if self._group is not None:
+            self._group.flag_update()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -405,7 +350,8 @@ cdef class ThorRectangle(ThorInstruction):
             self._tvg_shape.set_stroke_width(self._stroke_width)
             self._tvg_shape.set_stroke_color(*self._stroke)
         if not self._shape_added:
-            self._add_paint()
+            self._gl_canvas.add(self._tvg_shape)
+            self._shape_added = True
         self._dirty = False
 
     # ── properties ─────────────────────────────────────────────
@@ -489,7 +435,8 @@ cdef class ThorRoundedRectangle(ThorInstruction):
             self._tvg_shape.set_stroke_width(self._stroke_width)
             self._tvg_shape.set_stroke_color(*self._stroke)
         if not self._shape_added:
-            self._add_paint()
+            self._gl_canvas.add(self._tvg_shape)
+            self._shape_added = True
         self._dirty = False
 
     @property
@@ -583,7 +530,8 @@ cdef class ThorCircle(ThorInstruction):
             self._tvg_shape.set_stroke_width(self._stroke_width)
             self._tvg_shape.set_stroke_color(*self._stroke)
         if not self._shape_added:
-            self._add_paint()
+            self._gl_canvas.add(self._tvg_shape)
+            self._shape_added = True
         self._dirty = False
 
     @property
@@ -668,7 +616,8 @@ cdef class ThorTriangle(ThorInstruction):
             self._tvg_shape.set_stroke_width(self._stroke_width)
             self._tvg_shape.set_stroke_color(*self._stroke)
         if not self._shape_added:
-            self._add_paint()
+            self._gl_canvas.add(self._tvg_shape)
+            self._shape_added = True
         self._dirty = False
 
     @property
@@ -741,7 +690,8 @@ cdef class ThorQuad(ThorInstruction):
             self._tvg_shape.set_stroke_width(self._stroke_width)
             self._tvg_shape.set_stroke_color(*self._stroke)
         if not self._shape_added:
-            self._add_paint()
+            self._gl_canvas.add(self._tvg_shape)
+            self._shape_added = True
         self._dirty = False
 
     @property
@@ -844,10 +794,15 @@ cdef class ThorSvg(ThorInstruction):
 
             # Remove old picture if any, then add new one
             if self._picture_added and self._tvg_shape is not None:
-                self._remove_paint()
+                try:
+                    self._gl_canvas.remove(self._tvg_shape)
+                except Exception:
+                    pass
+                self._shape_added = False
 
             self._tvg_shape = pic
-            self._add_paint()
+            self._gl_canvas.add(self._tvg_shape)
+            self._shape_added = True
             self._picture_added = True
             self._content_dirty = False
             # after reload, always apply transform
@@ -949,15 +904,6 @@ cdef class ThorScene(ThorInstruction):
         # apply() frame (GlCanvas is still lazily created in apply).
         self._tvg_shape = Scene()
 
-    # ── context manager: push/pop scene stack ─────────────────
-    def __enter__(self):
-        _SCENE_STACK.append(self)
-        return self
-
-    def __exit__(self, *args):
-        _SCENE_STACK.pop()
-        return False
-
     # ── child paint management ─────────────────────────────────
     def add(self, paint):
         """Add a ``thorvg_cython`` paint (Shape / Picture / Text) to this scene."""
@@ -1034,43 +980,41 @@ cdef class ThorScene(ThorInstruction):
 
     # ── internal rebuild ───────────────────────────────────────
     cdef void _rebuild(self):
-        # Scene already created in __init__; just push it onto
-        # the GlCanvas once.
         if not self._shape_added:
-            self._add_paint()
+            self._gl_canvas.add(self._tvg_shape)
+            self._shape_added = True
         self._dirty = False
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  ThorGroup — batch-render InstructionGroup with ONE GlCanvas
+#  ThorGroup — batch-render with ONE shared GlCanvas
 # ═══════════════════════════════════════════════════════════════════
-cdef class ThorGroup(CanvasBase):
-    """Batch-render group: one ``GlCanvas`` for all children.
+cdef class ThorGroup(Instruction):
+    """Batch-render group: one shared ``GlCanvas`` for all children.
 
-    Works exactly like Kivy's ``InstructionGroup`` / ``CanvasBase``:
-    children created inside ``with ThorGroup():`` are auto-collected.
-    The group owns **one** ``GlCanvas`` and does a single render
-    pass per frame.
-
-    The 3-step pipeline runs per frame:
-
-    1. ``update()`` — only if at least one child was dirty.
-    2. ``draw(False)`` — composites all paints onto the FBO.
-    3. ``sync()`` — waits for the GPU.
+    Owns one ``GlCanvas`` and pushes it to every child added via
+    ``add()``.  Children are ``ThorInstruction`` instances created
+    **outside** any ``with canvas:`` block — the group is the sole
+    Kivy ``Instruction`` and handles ``update`` → ``draw`` → ``sync``.
 
     Usage::
 
         with self.canvas:
-            with ThorGroup() as group:
-                self.rect = ThorRectangle(pos=(10, 10), size=(200, 100),
-                                          fill_color=(255, 0, 0))
-                self.circle = ThorCircle(center=(300, 300), radius=60,
-                                          fill_color=(0, 128, 255))
+            self.group = ThorGroup()
 
-        # later — property change propagates to the group
+        self.rect = ThorRectangle(pos=(10, 10), size=(200, 100),
+                                  fill_color=(255, 0, 0))
+        self.group.add(self.rect)
+
+        self.circle = ThorCircle(center=(300, 300), radius=60,
+                                  fill_color=(0, 128, 255))
+        self.group.add(self.circle)
+
+        # later — property changes propagate to the group
         self.rect.pos = (50, 50)
     """
     cdef object _gl_canvas
+    cdef list   _children
     cdef int    _cached_fbo
     cdef unsigned int _cached_vp_w
     cdef unsigned int _cached_vp_h
@@ -1078,32 +1022,54 @@ cdef class ThorGroup(CanvasBase):
     def __init__(self, **kwargs):
         _ensure_engine()
         self._gl_canvas = None
+        self._children = []
         self._cached_fbo = -1
         self._cached_vp_w = 0
         self._cached_vp_h = 0
-        CanvasBase.__init__(self, **kwargs)
+        Instruction.__init__(self, **kwargs)
 
-    def __enter__(self):
-        _GROUP_STACK.append(self)
-        CanvasBase.__enter__(self)       # pushActiveCanvas
-        return self
+    def add(self, ThorInstruction child):
+        """Add a ThorInstruction to this group."""
+        child._group = self
+        self._children.append(child)
+        if self._gl_canvas is not None:
+            child._gl_canvas = self._gl_canvas
+        self.flag_update()
 
-    def __exit__(self, *args):
-        CanvasBase.__exit__(self)         # popActiveCanvas
-        _GROUP_STACK.pop()
-        return False
+    def remove(self, ThorInstruction child):
+        """Remove a ThorInstruction from this group."""
+        if child._tvg_shape is not None and child._shape_added:
+            try:
+                self._gl_canvas.remove(child._tvg_shape)
+            except Exception:
+                pass
+            child._shape_added = False
+        child._gl_canvas = None
+        child._group = None
+        try:
+            self._children.remove(child)
+        except ValueError:
+            pass
+        self.flag_update()
+
+    @property
+    def children(self):
+        """Read-only list of children in this group."""
+        return list(self._children)
 
     cdef int apply(self) except -1:
         cdef GLint saved_fbo = 0
         cdef GLint saved_vp[4]
         cdef uint32_t vp_w, vp_h
-        cdef Instruction c
         cdef bint any_dirty = False
 
         # --- lazy-create GlCanvas --------------------------------
         if self._gl_canvas is None:
             self._gl_canvas = GlCanvas()
             self._cached_fbo = -1
+            # push canvas to children added before first frame
+            for child in self._children:
+                (<ThorInstruction>child)._gl_canvas = self._gl_canvas
 
         # --- save FBO + viewport ---------------------------------
         cgl.glGetIntegerv(GL_FRAMEBUFFER_BINDING, &saved_fbo)
@@ -1132,11 +1098,11 @@ cdef class ThorGroup(CanvasBase):
             else:
                 return 0
 
-        # --- iterate children: check dirty BEFORE _rebuild clears it
-        for c in self.children:
-            if isinstance(c, ThorInstruction) and (<ThorInstruction>c)._dirty:
+        # --- rebuild children: check dirty BEFORE _rebuild clears it
+        for child in self._children:
+            if (<ThorInstruction>child)._dirty:
                 any_dirty = True
-            c.apply()
+            (<ThorInstruction>child)._rebuild()
 
         # --- unbind Kivy VBO/EBO --------------------------------
         cgl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
