@@ -14,6 +14,7 @@ from thorkivy.instructions import (
     ThorCircle,
     ThorTriangle,
     ThorQuad,
+    ThorGroup
 )
 
 
@@ -30,6 +31,9 @@ class RingsCanvas(Widget):
             self._bg2 = KivyRect(pos=(0, 0), size=self.size)
 
         with self.canvas:
+            self.ring_group = ThorGroup()  # group for the rings, to test grouping + transforms
+            
+        with self.ring_group:
             # ── Concentric rings (stroked circles, no fill) ────
             ring_colors = [
                 (255, 80, 80, 160),

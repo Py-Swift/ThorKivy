@@ -243,7 +243,7 @@ name = "thorvg-cython"
 version = "0.0.2"
 source = { path = "../wheelhouse/thorvg_cython-0.0.2-cp313-cp313-macosx_11_0_x86_64.whl" }
 wheels = [
-    { filename = "thorvg_cython-0.0.2-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:a10d6df684f999d2c6fe09c6561ca777997be967943b22b6acb48030ee37ec36" },
+    { filename = "thorvg_cython-0.0.2-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:903dcbb0bdb43ad71fdb075590864faed6c4ef5434d94e9d918b37006fdbd164" },
 ]
 
 [package.metadata]

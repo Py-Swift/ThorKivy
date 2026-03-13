@@ -410,3 +410,135 @@ class ThorSvg(ThorInstruction):
         ...
     @size.setter
     def size(self, value: tuple[float, float]) -> None: ...
+
+
+class ThorScene(ThorInstruction):
+    """Batch-render many ThorVG paints under **one** ``GlCanvas``.
+
+    Collects child paints into a single ``Scene`` and renders them
+    all in one ``update`` → ``draw`` → ``sync`` cycle per frame,
+    instead of N separate cycles.
+
+    Children are raw ``thorvg_cython`` paint objects (``Shape``,
+    ``Picture``, ``Text``), not ThorKivy instruction wrappers.
+
+    Example::
+
+        from thorvg_cython import Shape
+
+        with self.canvas:
+            scene = ThorScene()
+        rect = Shape()
+        rect.append_rect(10, 10, 200, 100)
+        rect.set_fill_color(255, 0, 0, 255)
+        scene.add(rect)
+        scene.drop_shadow(0, 0, 0, 128, angle=45, distance=5, sigma=2)
+    """
+
+    def __init__(self) -> None:
+        """Create an empty scene."""
+        ...
+
+    def add(self, paint: object) -> None:
+        """Add a ``thorvg_cython`` Paint to this scene."""
+        ...
+
+    def insert(self, target: object, at: object | None = ...) -> None:
+        """Insert *target* before *at* (or append if ``None``)."""
+        ...
+
+    def remove(self, paint: object | None = ...) -> None:
+        """Remove *paint*, or all paints if ``None``."""
+        ...
+
+    @property
+    def paints(self) -> list[object]:
+        """Read-only copy of child paints currently in the scene."""
+        ...
+
+    def gaussian_blur(
+        self,
+        sigma: float,
+        direction: int = ...,
+        border: int = ...,
+        quality: int = ...,
+    ) -> None:
+        """Gaussian blur over the whole scene."""
+        ...
+
+    def drop_shadow(
+        self,
+        r: int,
+        g: int,
+        b: int,
+        a: int,
+        angle: float = ...,
+        distance: float = ...,
+        sigma: float = ...,
+        quality: int = ...,
+    ) -> None:
+        """Drop-shadow behind the whole scene."""
+        ...
+
+    def fill_effect(self, r: int, g: int, b: int, a: int) -> None:
+        """Solid-colour fill overlay on the whole scene."""
+        ...
+
+    def tint(
+        self,
+        black_r: int,
+        black_g: int,
+        black_b: int,
+        white_r: int,
+        white_g: int,
+        white_b: int,
+        intensity: float = ...,
+    ) -> None:
+        """Tint effect on the whole scene."""
+        ...
+
+    def tritone(
+        self,
+        sr: int,
+        sg: int,
+        sb: int,
+        mr: int,
+        mg: int,
+        mb: int,
+        hr: int,
+        hg: int,
+        hb: int,
+        blend: float = ...,
+    ) -> None:
+        """Tritone effect on the whole scene."""
+        ...
+
+    def clear_effects(self) -> None:
+        """Remove all effects from this scene."""
+        ...
+
+
+class ThorGroup:
+    """Batch-render group: one GlCanvas for all children.
+
+    Works like Kivy's ``InstructionGroup`` / ``CanvasBase``.
+    Children created inside ``with ThorGroup():`` are auto-collected.
+    One render pass per frame.
+
+    Skips ``update()`` if nothing changed — just ``draw()`` + ``sync()``.
+
+    Example::
+
+        with self.canvas:
+            with ThorGroup() as group:
+                self.rect = ThorRectangle(pos=(10, 10), size=(200, 100),
+                                          fill_color=(255, 0, 0))
+                self.circle = ThorCircle(center=(300, 300), radius=60,
+                                          fill_color=(0, 128, 255))
+
+        self.rect.pos = (50, 50)  # propagates dirty to group
+    """
+
+    def __init__(self) -> None: ...
+    def __enter__(self) -> "ThorGroup": ...
+    def __exit__(self, *args: object) -> bool: ...
