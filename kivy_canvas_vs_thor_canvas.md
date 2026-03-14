@@ -74,7 +74,6 @@ Each wraps its base shape plus an internal `AntiAliasingLine` outline. Disabled 
 | `ScissorPush/Pop` | Scissor-rect clipping |
 | `BoxShadow` | Drop-shadow effect |
 | `Fbo` | Off-screen render target |
-| `Callback` | Arbitrary Python callback during draw |
 
 ---
 
@@ -146,8 +145,8 @@ ThorVG does **not** use separate classes per shape. Instead, a single `Shape` ob
 | Image / texture | `Rectangle(source='img.png')` | `Picture.load('img.png')` |
 | SVG | *(not built-in; kivy.graphics.svg is limited)* | `Picture.load('file.svg')` |
 | Lottie animation | *(not built-in)* | `Picture.load('anim.json')` + `Animation` |
-| 9-slice image | `BorderImage(source, border)` | *(not built-in — manual path + Picture)* |
-| Arbitrary mesh | `Mesh(vertices, indices, mode)` | `append_path(commands, points)` |
+| 9-slice image | `BorderImage(source, border)` | `Picture` + `Shape` with stroked `append_rect` (easy to compose) |
+| Arbitrary mesh | `Mesh(vertices, indices, mode)` | `append_path(commands, points)` — AA filled shapes cover most mesh use-cases |
 | Anti-aliasing | Explicit `Smooth*` wrappers | Always on (engine-level) |
 | Clipping | `StencilPush/Use/UnUse/Pop` | `paint.set_clip(clipper)` |
 | Masking | *(not built-in)* | `paint.set_mask_method(target, method)` |
@@ -170,5 +169,10 @@ ThorVG does **not** use separate classes per shape. Instead, a single `Shape` ob
 4. **ThorVG natively supports features Kivy lacks:**  
    gradients, SVG, Lottie, trim-paths, multiple blend modes, clip/mask per-paint.
 
-5. **Kivy has features ThorVG doesn't ship out-of-the-box:**  
-   9-slice `BorderImage`, `Mesh` with arbitrary vertex formats, `Fbo` (off-screen render-to-texture), `Callback` instructions.
+5. **Kivy has a few features that look absent from ThorVG — but most are covered:**  
+   *Easily composed:*
+   - **`BorderImage` (9-slice):** combine a `Picture` (for the image) with a `Shape` using `append_rect` + stroke — straightforward to build.
+   - **`Mesh`:** less of a gap in practice — ThorVG's anti-aliased filled `Shape` paths cover most use-cases that Kivy apps use `Mesh` for (custom polygons, fans, strips). Raw indexed-triangle meshes with arbitrary vertex formats remain GL-specific.
+
+   *Already present at a different level:*
+   - **`Fbo`:** Kivy's `Fbo` is just a way to funnel GL instructions/shaders into a Kivy `Texture` via an OpenGL framebuffer object. ThorVG-Cython's `GlCanvas` already accepts an FBO ID (`canvas.target(…, fbo_id, …)`) — so a Kivy `Fbo` can set up the framebuffer and hand its ID to `GlCanvas`, which then renders into the same surface. The concept exists in both systems, just at different abstraction levels.
