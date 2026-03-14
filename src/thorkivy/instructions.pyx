@@ -58,7 +58,48 @@ from kivy.graphics.cgl cimport (
     GL_UNPACK_ALIGNMENT,
 )
 from thorvg_cython import Engine, GlCanvas, Shape, Picture, Scene, Colorspace
+from kivy.core.window import Window
 
+
+cdef class ThorWindow:
+    """ThorVG engine singleton and utility functions.
+
+    This module-level class is not intended for public use, but it holds
+    the shared Engine instance and some helper functions that both
+    sw_canvas.pyx and gl_canvas.pyx can cimport.
+    """
+
+    cdef float width
+    cdef float height
+
+    def __cinit__(self):
+        
+        self.width = Window.width
+        self.height = Window.height
+
+    def __init__(self):
+        Window.bind(size=ThorWindow.on_window_resize)
+        print("ThorWindow: initialized")
+
+    def on_window_resize(self, size: tuple):
+        # This is called from the Kivy app's on_resize event handler.
+        # We don't actually need to do anything here since we query the
+        # viewport size every frame in apply(), but we could use this
+        # callback to trigger a re-render or something if needed.
+        w, h = size
+        cdef float width = w
+        cdef float height = h
+        self.width = width
+        self.height = height
+        print(f"ThorWindow: resized to {width}x{height}")
+    
+    cdef float calculate_y_inversion(self, float y):
+        # Kivy's coordinate system has (0, 0) at the bottom-left, while
+        # OpenGL and ThorVG expect (0, 0) at the top-left.  This helper
+        # converts a Y coordinate from Kivy's system to ThorVG's.
+        return self.height - y
+
+cdef ThorWindow _window = ThorWindow()
 
 # ═══════════════════════════════════════════════════════════════════
 #  ANGLE preload (unchanged — keeps dlopen happy on macOS)
@@ -349,7 +390,11 @@ cdef class ThorRectangle(ThorInstruction):
         if not self._dirty:
             return
         self._tvg_shape.reset()
-        self._tvg_shape.append_rect(self._x, self._y, self._w, self._h)
+        self._tvg_shape.append_rect(
+            self._x,
+            _window.calculate_y_inversion((self._y + self._h)),
+            self._w, self._h,
+        )
         self._tvg_shape.set_fill_color(*self._fill)
         if self._stroke_width > 0 and self._stroke:
             self._tvg_shape.set_stroke_width(self._stroke_width)
@@ -365,7 +410,8 @@ cdef class ThorRectangle(ThorInstruction):
         return (self._x, self._y)
     @pos.setter
     def pos(self, value):
-        self._x, self._y = value
+        self._x, _y = value
+        self._y = _y #+ self._h  # adjust for Kivy vs ThorVG coordinate origin
         self._mark_dirty()
 
     @property
@@ -433,8 +479,12 @@ cdef class ThorRoundedRectangle(ThorInstruction):
         if not self._dirty:
             return
         self._tvg_shape.reset()
-        self._tvg_shape.append_rect(self._x, self._y, self._w, self._h,
-                                    self._rx, self._ry)
+        self._tvg_shape.append_rect(
+            self._x,
+            _window.calculate_y_inversion((self._y + self._h)),
+            self._w, self._h,
+            self._rx, self._ry,
+        )
         self._tvg_shape.set_fill_color(*self._fill)
         if self._stroke_width > 0 and self._stroke:
             self._tvg_shape.set_stroke_width(self._stroke_width)
@@ -528,8 +578,11 @@ cdef class ThorCircle(ThorInstruction):
         if not self._dirty:
             return
         self._tvg_shape.reset()
-        self._tvg_shape.append_circle(self._cx, self._cy,
-                                      self._rx, self._ry)
+        self._tvg_shape.append_circle(
+            self._cx,
+            _window.calculate_y_inversion(self._cy + self._ry),
+            self._rx, self._ry,
+        )
         self._tvg_shape.set_fill_color(*self._fill)
         if self._stroke_width > 0 and self._stroke:
             self._tvg_shape.set_stroke_width(self._stroke_width)
@@ -612,9 +665,9 @@ cdef class ThorTriangle(ThorInstruction):
             return
         p = self._pts
         self._tvg_shape.reset()
-        self._tvg_shape.move_to(p[0], p[1])
-        self._tvg_shape.line_to(p[2], p[3])
-        self._tvg_shape.line_to(p[4], p[5])
+        self._tvg_shape.move_to(p[0], _window.calculate_y_inversion(<int>p[1]))
+        self._tvg_shape.line_to(p[2], _window.calculate_y_inversion(<int>p[3]))
+        self._tvg_shape.line_to(p[4], _window.calculate_y_inversion(<int>p[5]))
         self._tvg_shape.close()
         self._tvg_shape.set_fill_color(*self._fill)
         if self._stroke_width > 0 and self._stroke:
@@ -685,10 +738,10 @@ cdef class ThorQuad(ThorInstruction):
             return
         p = self._pts
         self._tvg_shape.reset()
-        self._tvg_shape.move_to(p[0], p[1])
-        self._tvg_shape.line_to(p[2], p[3])
-        self._tvg_shape.line_to(p[4], p[5])
-        self._tvg_shape.line_to(p[6], p[7])
+        self._tvg_shape.move_to(p[0], _window.calculate_y_inversion(<int>p[1]))
+        self._tvg_shape.line_to(p[2], _window.calculate_y_inversion(<int>p[3]))
+        self._tvg_shape.line_to(p[4], _window.calculate_y_inversion(<int>p[5]))
+        self._tvg_shape.line_to(p[6], _window.calculate_y_inversion(<int>p[7]))
         self._tvg_shape.close()
         self._tvg_shape.set_fill_color(*self._fill)
         if self._stroke_width > 0 and self._stroke:
@@ -815,7 +868,10 @@ cdef class ThorSvg(ThorInstruction):
 
         # ── transform update (cheap — just matrix ops) ──────────
         if self._transform_dirty and self._tvg_shape is not None:
-            self._tvg_shape.translate(self._x, self._y)
+            self._tvg_shape.translate(
+                self._x,
+                _window.calculate_y_inversion(<int>(self._y + self._h)),
+            )
             if self._w > 0 and self._h > 0:
                 self._tvg_shape.set_size(self._w, self._h)
             self._transform_dirty = False

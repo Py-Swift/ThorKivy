@@ -27,6 +27,7 @@ from thorkivy.examples.screen_3 import DashboardWidget
 from thorkivy.examples.screen_4 import ClockFace
 from thorkivy.examples.screen_5 import ParticleCanvas
 from thorkivy.examples.screen_6 import QuadGrid
+from thorkivy.examples.screen_7 import KivyRectTest
 
 # ── registry of screens ────────────────────────────────────────
 SCREENS = [
@@ -37,6 +38,7 @@ SCREENS = [
     ("Clock", ClockFace),
     ("Particles", ParticleCanvas),
     ("Quad Grid", QuadGrid),
+    ("Kivy Rect", KivyRectTest),
 ]
 
 

@@ -7,7 +7,7 @@ overlay — demonstrates basic usage and property animation.
 from kivy.uix.widget import Widget
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle as KivyRect
-
+from kivy.uix.relativelayout import RelativeLayout
 from thorkivy.instructions import (
     ThorRectangle,
     ThorRoundedRectangle,
@@ -79,19 +79,19 @@ class ThorCanvas(Widget):
     # ── coordinate helpers ─────────────────────────────────────
     def _sx(self, v):
         """Scale a design-space x value to current width."""
-        return self.x + v * self.width / self._DW
+        return self.x + v #(v * (self.width / self._DW))
 
     def _sy(self, v):
         """Scale a design-space y value to current height."""
-        return self.y + v * self.height / self._DH
+        return self.y - v #(v * (self.height / self._DH))
 
     def _sw(self, v):
         """Scale a width value."""
-        return v * self.width / self._DW
+        return v * (self.width / self._DW)
 
     def _sh(self, v):
         """Scale a height value."""
-        return v * self.height / self._DH
+        return v * (self.height / self._DH)
 
     # ── layout ─────────────────────────────────────────────────
     def _on_layout(self, *_args):
