@@ -77,44 +77,50 @@ class ThorCanvas(Widget):
         Clock.schedule_interval(self._animate, 1 / 60.0)
 
     # ── coordinate helpers ─────────────────────────────────────
-    def _sx(self, v):
+    def _sx(self, v) -> float:
         """Scale a design-space x value to current width."""
         return self.x + v #(v * (self.width / self._DW))
 
-    def _sy(self, v):
+    def _sy(self, v) -> float:
         """Scale a design-space y value to current height."""
-        return self.y - v #(v * (self.height / self._DH))
+        return self.y + v #(v * (self.height / self._DH))
 
-    def _sw(self, v):
+    def _sw(self, v) -> float:
         """Scale a width value."""
-        return v * (self.width / self._DW)
+        return (v) * (self.width )
 
-    def _sh(self, v):
+    def _sh(self, v) -> float:
         """Scale a height value."""
-        return v * (self.height / self._DH)
-
+        return v * (self.height )
     # ── layout ─────────────────────────────────────────────────
     def _on_layout(self, *_args):
         self._bg.pos = self.pos
         self._bg.size = self.size
 
+        rect_w = self._sw(0.1)
+        rect_h = self._sh(0.08)
         # Place shapes at their rest positions
         self._rect.pos = (self._sx(50), self._sy(50))
-        self._rect.size = (self._sw(200), self._sh(120))
+        self._rect.size = (rect_w, rect_h)
 
+        rrect_w = self._sw(0.25)
+        rrect_h = self._sh(0.2)
         self._rrect.pos = (self._sx(300), self._sy(50))
-        self._rrect.size = (self._sw(200), self._sh(120))
+        self._rrect.size = (rrect_w, rrect_h)
         self._rrect.radius = self._sw(20)
 
+        _circle_size = self._sw(0.1)
         self._circle.center = (self._sx(150), self._sy(320))
-        self._circle.radius = self._sw(80)
+        self._circle.radius = _circle_size
 
+        tri_w = self._sw(0.125)
+        tri_h = self._sh(0.15)
         self._tri.points = (
             self._sx(400), self._sy(220),
             self._sx(500), self._sy(400),
             self._sx(300), self._sy(400),
         )
-
+        quad_h = self._sh(0.15)
         self._quad.points = (
             self._sx(550), self._sy(50),
             self._sx(750), self._sy(80),
@@ -122,7 +128,7 @@ class ThorCanvas(Widget):
             self._sx(530), self._sy(180),
         )
 
-        self.overlay.pos = (self._sx(60), self._sy(0))
+        self.overlay.pos = (self._sx(60), 0)
         self.overlay.size = (self._sw(320), self._sh(320))
 
     def _animate(self, dt):
@@ -138,12 +144,14 @@ class ThorCanvas(Widget):
         )
 
         # Circle bounces around center
+        _circle_size = self._sw(0.1)
         cx = self._sx(150 + 120 * s(t * 1.5))
         cy = self._sy(320 + 60 * s(t * 2.3))
         self._circle.center = (cx, cy)
 
         # Triangle drifts left/right
         ox = 80 * s(t * 1.0)
+        tri_h = self._sh(0.15)
         self._tri.points = (
             self._sx(400 + ox), self._sy(220),
             self._sx(500 + ox), self._sy(400),
@@ -153,7 +161,7 @@ class ThorCanvas(Widget):
         # Rounded rectangle pulses size
         w = 200 + 60 * s(t * 1.8)
         h = 120 + 30 * s(t * 2.5)
-        self._rrect.size = (self._sw(w), self._sh(h))
+        self._rrect.size = (w, h)
 
         # Red rectangle cycles color
         r = int(127 + 127 * s(t * 2.0))
@@ -162,6 +170,7 @@ class ThorCanvas(Widget):
         self._rect.fill_color = (r, g, b, 255)
 
         # Purple quad wobbles vertices
+        quad_h = self._sh(0.15)
         self._quad.points = (
             self._sx(550 + 8 * s(t * 2.1)), self._sy(50 + 5 * s(t * 1.7)),
             self._sx(750 + 6 * s(t * 1.9)), self._sy(80 + 7 * s(t * 2.4)),

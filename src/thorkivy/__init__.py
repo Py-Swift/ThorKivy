@@ -18,32 +18,45 @@ so they can be used directly in KV language::
                 radius: 60
                 fill_color: 0, 128, 255, 200
 """
+from thorkivy._engine import init_engine, shutdown_engine
 from thorkivy.instructions import (
+    ThorMatrix,
     ThorInstruction,
     ThorRectangle,
     ThorRoundedRectangle,
     ThorCircle,
     ThorTriangle,
     ThorQuad,
+    ThorLine,
+    ThorArc,
     ThorSvg,
     ThorScene,
     ThorGroup,
+    ThorCanvas,
 )
 
 __all__ = [
+    "init_engine",
+    "shutdown_engine",
+    "ThorMatrix",
     "ThorInstruction",
     "ThorRectangle",
     "ThorRoundedRectangle",
     "ThorCircle",
     "ThorTriangle",
     "ThorQuad",
+    "ThorLine",
+    "ThorArc",
     "ThorSvg",
     "ThorScene",
     "ThorGroup",
+    "ThorCanvas",
 ]
 
 # ── Register with Kivy Factory for KV language support ─────────
 from kivy.factory import Factory
 
-for _cls in (ThorRectangle, ThorRoundedRectangle, ThorCircle, ThorTriangle, ThorQuad, ThorSvg, ThorScene, ThorGroup):
+for _cls in (ThorRectangle, ThorRoundedRectangle, ThorCircle, ThorTriangle,
+             ThorQuad, ThorLine, ThorArc, ThorSvg, ThorScene, ThorGroup,
+             ThorCanvas):
     Factory.register(_cls.__name__, cls=_cls)

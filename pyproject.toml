@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.13"
 license = "MIT"
 dependencies = [
-    "kivy",
+    "kivy==3.0.0.dev0",
     "thorvg-cython",
 ]
 classifiers = [
@@ -21,6 +21,8 @@ classifiers = [
 
 [project.scripts]
 thorkivy = "thorkivy.__main__:main"
+thorkivy-debug = "thorkivy.debug:main"
+thorkivy-compare = "thorkivy.thor_compare.main:main"
 
 [build-system]
 requires = ["setuptools>=68", "Cython>=3.0", "kivy>=2.3.1"]
@@ -30,7 +32,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-thorkivy = ["*.pxd", "*.pyx", "examples/resources/svgs/*.svg"]
+thorkivy = ["*.pxd", "*.pyx", "instructions/*.pxd", "instructions/*.pyx", "examples/resources/svgs/*.svg", "_engine.pxd", "_engine.pyx"]
 
 [tool.cibuildwheel]
 build = "cp313-*"
@@ -42,6 +44,5 @@ test-command = "pytest {project}/tests -v"
 [tool.cibuildwheel.macos]
 environment = { THORVG_GPU = "angle", MACOSX_DEPLOYMENT_TARGET = "11.0" }
 
-[tool.uv.sources]
-kivy = { path = "../wheelhouse/kivy-3.0.0.dev0-cp313-cp313-macosx_10_15_x86_64.whl" }
-thorvg-cython = { path = "../wheelhouse/thorvg_cython-0.0.2-cp313-cp313-macosx_11_0_x86_64.whl" }
+[tool.uv]
+find-links = ["../wheelhouse"]

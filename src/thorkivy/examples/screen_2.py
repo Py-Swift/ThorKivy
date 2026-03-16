@@ -86,7 +86,7 @@ class GridCanvas(Widget):
         w, h = self.size
         self._bg.pos = self.pos
         self._bg.size = (w, h)
-        self._vig_top.pos = (self.x, self.y + h - 40)
+        self._vig_top.pos = (self.x, self.y + h )
         self._vig_top.size = (w, 40)
         self._vig_bot.pos = self.pos
         self._vig_bot.size = (w, 30)
@@ -95,7 +95,7 @@ class GridCanvas(Widget):
         for idx, row, col, shape in self._tiles:
             bx, by = self._tile_origin(row, col, tile_w, tile_h)
             if isinstance(shape, ThorCircle):
-                shape.center = (bx + tile_w / 2, by + tile_h / 2)
+                shape.center = ((bx + tile_w) / 2, (by + tile_h) / 2)
                 shape.radius = min(tile_w, tile_h) / 2 - 4
             else:
                 shape.pos = (bx + 4, by + 4)

@@ -32,12 +32,35 @@ if sys.platform == "darwin":
 ext_modules = cythonize(
     [
         Extension(
-            name="thorkivy.instructions",
-            sources=["src/thorkivy/instructions.pyx"],
+            name="thorkivy._engine",
+            sources=["src/thorkivy/_engine.pyx"],
             include_dirs=[KIVY_INCLUDE],
             extra_compile_args=extra_compile_args,
             language="c++",
         ),
+    ] + [
+        Extension(
+            name=f"thorkivy.instructions.{mod}",
+            sources=[f"src/thorkivy/instructions/{mod}.pyx"],
+            include_dirs=[KIVY_INCLUDE],
+            extra_compile_args=extra_compile_args,
+            language="c++",
+        )
+        for mod in [
+            "_core",
+            "_base",
+            "_rectangle",
+            "_rounded_rectangle",
+            "_circle",
+            "_triangle",
+            "_quad",
+            "_line",
+            "_arc",
+            "_svg",
+            "_scene",
+            "_group",
+            "_canvas",
+        ]
     ],
     compiler_directives={
         "language_level": "3",
