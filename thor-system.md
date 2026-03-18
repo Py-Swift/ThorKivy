@@ -12,9 +12,9 @@ cdef class ThorCanvasBase(CanvasBase):
 
 cdef class ThorGesture:
 
-    def on_start(...)
-    def on_move(...)
-    def on_end(...)
+    def on_start(...): ...
+    def on_move(...): ...
+    def on_end(...): ...
 ```
 
 
