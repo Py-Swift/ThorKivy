@@ -15,6 +15,6 @@ wheels/
 # macOS
 .DS_Store
 
-# Generated Cython C++
-src/thorkivy/*.cpp
-src/thorkivy/*.so
+# Generated Cython C++ / shared objects (all subdirs)
+src/thorkivy/**/*.cpp
+src/thorkivy/**/*.so

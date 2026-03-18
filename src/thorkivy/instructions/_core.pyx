@@ -15,13 +15,50 @@ from thorvg_cython import StrokeCap
 # ═══════════════════════════════════════════════════════════════════
 #  EGL handle query
 # ═══════════════════════════════════════════════════════════════════
+import sys as _sys
+
+cdef object _egl_lib = None          # cached ctypes handle
+cdef bint   _egl_load_attempted = False
+
+cdef object _load_egl_lib():
+    """Load libEGL once — framework path on iOS, .dylib on macOS."""
+    global _egl_lib, _egl_load_attempted
+    if _egl_load_attempted:
+        return _egl_lib
+    _egl_load_attempted = True
+    import ctypes
+    if _sys.platform == "ios":
+        for path in (
+            "@rpath/libEGL.framework/libEGL",
+            "libEGL.framework/libEGL",
+        ):
+            try:
+                _egl_lib = ctypes.CDLL(path)
+                print(f"[ThorKivy] Loaded EGL from {path}")
+                break
+            except OSError:
+                pass
+    else:
+        # macOS: ANGLE ships as bare .dylib inside kivy/.dylibs/
+        try:
+            import kivy
+            dylib_path = _os.path.join(
+                _os.path.dirname(kivy.__file__), ".dylibs", "libEGL.dylib"
+            )
+            _egl_lib = ctypes.CDLL(dylib_path)
+        except Exception:
+            pass
+    if _egl_lib is None:
+        print("[ThorKivy] WARNING: could not load libEGL")
+    return _egl_lib
+
 cdef tuple _get_egl_handles():
     try:
-        import ctypes, kivy
-        egl = ctypes.CDLL(
-            _os.path.join(_os.path.dirname(kivy.__file__),
-                          ".dylibs", "libEGL.dylib")
-        )
+        import ctypes
+        egl = _load_egl_lib()
+        if egl is None:
+            return (0, 0, 0)
+
         egl.eglGetCurrentDisplay.restype = ctypes.c_void_p
         egl.eglGetCurrentDisplay.argtypes = []
         display = egl.eglGetCurrentDisplay() or 0
@@ -35,7 +72,8 @@ cdef tuple _get_egl_handles():
         context = egl.eglGetCurrentContext() or 0
 
         return (display, surface, context)
-    except Exception:
+    except Exception as e:
+        print(f"[ThorKivy] _get_egl_handles error: {e}")
         return (0, 0, 0)
 
 

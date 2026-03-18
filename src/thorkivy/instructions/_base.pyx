@@ -59,6 +59,7 @@ cdef class ThorInstruction(Instruction):
         cdef GLint saved_fbo = 0
         cdef GLint saved_vp[4]
         cdef uint32_t vp_w, vp_h
+        cdef GLint gl_err
 
         # --- group-managed: just rebuild, group does the draw ---
         if self._group is not None:
@@ -89,11 +90,16 @@ cdef class ThorInstruction(Instruction):
                 vp_w != self._cached_vp_w or
                 vp_h != self._cached_vp_h):
             display, surface, context = _get_egl_handles()
+            if self._frame_count < 3:
+                print(f"[ThorKivy] target: egl=({display:#x},{surface:#x},{context:#x})"
+                      f" fbo={saved_fbo} vp={vp_w}x{vp_h}")
             res = self._gl_canvas.target(
                 display, surface, context,
                 <int32_t>saved_fbo, vp_w, vp_h,
                 Colorspace.ABGR8888S,
             )
+            if self._frame_count < 3:
+                print(f"[ThorKivy] target result: {res}")
             if res.name == "SUCCESS":
                 self._cached_fbo = saved_fbo
                 self._cached_vp_w = vp_w
@@ -110,6 +116,15 @@ cdef class ThorInstruction(Instruction):
             self._gl_canvas.update()
             self._gl_canvas.draw(False)
             self._gl_canvas.sync()
+
+            if self._frame_count < 3:
+                gl_err = cgl.glGetError()
+                if gl_err != 0:
+                    print(f"[ThorKivy] GL error after sync: 0x{gl_err:04X}")
+                else:
+                    print("[ThorKivy] draw+sync OK (no GL errors)")
+
+        self._frame_count += 1
 
         # ═══════════════════════════════════════════════════════
         #  Minimal GL restore — put back what ThorVG changed,
