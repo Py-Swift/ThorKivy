@@ -15,7 +15,15 @@ from thorvg_cython import Engine
 # ═══════════════════════════════════════════════════════════════════
 #  ANGLE preload (keeps dlopen happy on macOS)
 # ═══════════════════════════════════════════════════════════════════
+import sys as _sys
+
 def _preload_angle():
+    # On iOS, ANGLE is embedded as .framework bundles in the app —
+    # the system linker loads them automatically.  Nothing to do.
+    if _sys.platform == "ios":
+        return
+    # macOS: pre-load bare .dylibs from Kivy's .dylibs/ folder so
+    # that dlopen("libGLESv2.dylib") inside ThorVG can find them.
     try:
         import kivy
         dylibs = _os.path.join(_os.path.dirname(kivy.__file__), ".dylibs")

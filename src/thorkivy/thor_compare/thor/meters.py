@@ -39,9 +39,10 @@ class GaugeBar(Widget):
         self.bind(pos=self._redraw, size=self._redraw, value=self._redraw)
 
     def _redraw(self, *_):
-        self._track.pos = ThorMatrix.pos(self)
+        pos = ThorMatrix.pos(self)
+        self._track.pos = pos
         self._track.size = self.size
-        self._fill.pos = ThorMatrix.pos(self)
+        self._fill.pos = pos
         self._fill.size = (self.width * self.value, self.height)
 
 

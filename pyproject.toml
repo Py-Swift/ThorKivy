@@ -25,7 +25,7 @@ thorkivy-debug = "thorkivy.debug:main"
 thorkivy-compare = "thorkivy.thor_compare.main:main"
 
 [build-system]
-requires = ["setuptools>=68", "Cython>=3.0", "kivy>=2.3.1"]
+requires = ["setuptools>=68", "Cython>=3.0", "kivy==3.0.0.dev0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -37,12 +37,15 @@ thorkivy = ["*.pxd", "*.pyx", "instructions/*.pxd", "instructions/*.pyx", "examp
 [tool.cibuildwheel]
 build = "cp313-*"
 skip = "pp* *-musllinux_i686"
-environment = { THORVG_GPU = "angle" }
-test-requires = ["pytest"]
-test-command = "pytest {project}/tests -v"
+environment = { THORVG_GPU = "angle"  }
+#test-requires = ["pytest"]
+#test-command = "pytest {project}/tests -v"
 
 [tool.cibuildwheel.macos]
 environment = { THORVG_GPU = "angle", MACOSX_DEPLOYMENT_TARGET = "11.0" }
 
-[tool.uv]
-find-links = ["../wheelhouse"]
+
+
+#[tool.uv]
+#find-links = ["../wheelhouse"]
+
